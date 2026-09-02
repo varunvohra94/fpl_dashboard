@@ -16,10 +16,10 @@
 *   [x] **Design a `pipeline_metadata` table** to track the `finished` and `data_checked` status of each gameweek to prevent duplicate runs.
 
 ## Phase 3: The Data Ingestion Engine
-*   [ ] **Write the lightweight polling function** to query `/bootstrap-static/` and validate if the current gameweek's `data_checked` flag is True. (Python)
-*   [ ] **Deploy the polling function** and schedule it to execute hourly. (Cloud Scheduler)
-*   [ ] **Develop the main ETL batch job** to pull data from `/entry/{id}/` and `/leagues-classic/{id}/standings/`, compute the rolling 3-game average, and load it into PostgreSQL.
-*   [ ] **Containerize the ETL job** to be triggered automatically upon successful polling validation. (Docker)
+*   [x] **Write the lightweight polling function** to query `/bootstrap-static/` and validate if the current gameweek's `data_checked` flag is True. (Python)
+*   [x] **Deploy the polling function** and schedule it to execute hourly. (Cloud Scheduler / Poller CLI)
+*   [x] **Develop the main ETL batch job** to pull data from `/entry/{id}/` and `/leagues-classic/{id}/standings/`, compute the rolling 3-game average, and load it into PostgreSQL.
+*   [x] **Containerize the ETL job** to be triggered automatically upon successful polling validation. (Docker)
 
 ## Phase 4: Backend API Services
 *   [ ] **Initialize the API service** to expose endpoints for the UI (e.g., `/api/v1/league/standings`, `/api/v1/league/transfers`). (FastAPI)
