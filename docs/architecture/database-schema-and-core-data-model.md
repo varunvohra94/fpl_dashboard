@@ -4,6 +4,7 @@
 > **Status:** Implemented (Phase 2)  
 > **Branch:** `feature/phase-2-database-schema`  
 > **Framework:** [.agent/skills/component-explainer](file:///.agent/skills/component-explainer/SKILL.md)  
+> **ERD Reference:** [docs/architecture/entity-relationship-diagram.md](file:///Users/vvohra/Workspaces/personal-projects/fpl_dashboard/docs/architecture/entity-relationship-diagram.md)  
 
 ---
 

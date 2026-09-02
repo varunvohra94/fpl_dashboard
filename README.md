@@ -58,4 +58,5 @@ uv run python test_db_integration.py
 
 - [Roadmap & Implementation Blueprint](docs/ROADMAP.md)
 - [Database Schema & Core Data Model Architecture](docs/architecture/database-schema-and-core-data-model.md)
+- [Database Entity-Relationship Diagram (ERD)](docs/architecture/entity-relationship-diagram.md)
 - [Master Monorepo Instructions](.agent/INSTRUCTIONS.md)
