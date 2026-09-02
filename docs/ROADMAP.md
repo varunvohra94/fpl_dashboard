@@ -10,10 +10,10 @@
 *   [ ] **Provision a managed PostgreSQL instance** and execute initial schema creation scripts. (GCP)
 
 ## Phase 2: Database Schema & Core Data Model
-*   [ ] **Design the `managers` table** to store league participants and team IDs. (PostgreSQL)
-*   [ ] **Create the `gameweek_scores` table** to track points, hits, and chip usage per week.
-*   [ ] **Implement the `transfers` table** to log players bought/sold, timestamps, and cost.
-*   [ ] **Design a `pipeline_metadata` table** to track the `finished` and `data_checked` status of each gameweek to prevent duplicate runs.
+*   [x] **Design the `managers` table** to store league participants and team IDs. (PostgreSQL)
+*   [x] **Create the `gameweek_scores` table** to track points, hits, and chip usage per week.
+*   [x] **Implement the `transfers` table** to log players bought/sold, timestamps, and cost.
+*   [x] **Design a `pipeline_metadata` table** to track the `finished` and `data_checked` status of each gameweek to prevent duplicate runs.
 
 ## Phase 3: The Data Ingestion Engine
 *   [ ] **Write the lightweight polling function** to query `/bootstrap-static/` and validate if the current gameweek's `data_checked` flag is True. (Python)
