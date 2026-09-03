@@ -1,8 +1,8 @@
-"""Integration and orchestration tests for the end-to-end ETL Pipeline."""
+"""Integration and orchestration tests for the end-to-end ETL Pipeline with automated teardown."""
 
 import pytest
-from backend.app.models import PipelineMetadata
-from sqlalchemy import select
+from backend.app.models import GameweekScore, Manager, PipelineMetadata, Transfer
+from sqlalchemy import delete, select
 
 from data_pipeline.src.fpl_client import FPLClient
 from data_pipeline.src.loader import PipelineLoader
@@ -11,6 +11,11 @@ from data_pipeline.src.poller import FPLPipelineRunner
 
 class MockFPLClient(FPLClient):
     """Mock client returning deterministic FPL fixtures for integration testing."""
+
+    def __init__(self, test_manager_id: int = 9999901, test_league_id: int = 8888801):
+        super().__init__()
+        self.test_manager_id = test_manager_id
+        self.test_league_id = test_league_id
 
     async def get_bootstrap_static(self):
         return {
@@ -71,9 +76,9 @@ class MockFPLClient(FPLClient):
             "standings": {
                 "results": [
                     {
-                        "entry": 944559,
-                        "player_name": "Varun Vohra",
-                        "entry_name": "Klopp's Kids",
+                        "entry": self.test_manager_id,
+                        "player_name": "Test Manager",
+                        "entry_name": "Test FC",
                     },
                 ]
             }
@@ -190,7 +195,9 @@ class MockPipelineLoader(PipelineLoader):
 @pytest.mark.asyncio
 async def test_pipeline_runner_orchestration():
     """Verify end-to-end orchestration logic through FPLPipelineRunner."""
-    mock_client = MockFPLClient()
+    test_league_id = 8888801
+    test_manager_id = 9999901
+    mock_client = MockFPLClient(test_manager_id=test_manager_id, test_league_id=test_league_id)
     mock_loader = MockPipelineLoader()
     runner = FPLPipelineRunner(fpl_client=mock_client, loader=mock_loader)
 
@@ -201,7 +208,7 @@ async def test_pipeline_runner_orchestration():
     assert len(mock_loader.elements) == 2
 
     # 2. Test full league ingestion
-    result = await runner.ingest_league(league_id=944559, target_gw=2, force=True)
+    result = await runner.ingest_league(league_id=test_league_id, target_gw=2, force=True)
     assert result["status"] == "COMPLETED"
     assert result["gameweek"] == 2
     assert result["managers_count"] == 1
@@ -225,7 +232,7 @@ async def test_pipeline_runner_orchestration():
 
 @pytest.mark.asyncio
 async def test_live_postgresql_ingestion():
-    """Test against live PostgreSQL container if reachable on localhost:5432."""
+    """Test against live PostgreSQL container with guaranteed automated teardown cleanup."""
     loader = PipelineLoader()
     try:
         async with await loader.get_session() as session:
@@ -233,11 +240,33 @@ async def test_live_postgresql_ingestion():
     except Exception:  # noqa: BLE001
         pytest.skip("PostgreSQL container not running on localhost:5432 (Docker Desktop idle).")
 
-    mock_client = MockFPLClient()
+    test_league_id = 8888801
+    test_manager_id = 9999901
+    mock_client = MockFPLClient(test_manager_id=test_manager_id, test_league_id=test_league_id)
     runner = FPLPipelineRunner(fpl_client=mock_client, loader=loader)
 
     try:
-        result = await runner.ingest_league(league_id=944559, target_gw=2, force=True)
+        result = await runner.ingest_league(league_id=test_league_id, target_gw=2, force=True)
         assert result["status"] == "COMPLETED"
+
+        # Verify that records were created in the live DB
+        async with await loader.get_session() as session:
+            manager = await session.get(Manager, test_manager_id)
+            assert manager is not None
+            assert manager.player_name == "Test Manager"
+
+            scores_stmt = select(GameweekScore).where(GameweekScore.manager_id == test_manager_id)
+            scores = (await session.execute(scores_stmt)).scalars().all()
+            assert len(scores) == 2
+
+            transfers_stmt = select(Transfer).where(Transfer.manager_id == test_manager_id)
+            transfers = (await session.execute(transfers_stmt)).scalars().all()
+            assert len(transfers) >= 1
+
     finally:
-        await loader.close()
+        # Automated Teardown / Cleanup: Delete test manager (cascades to scores & transfers)
+        try:
+            async with await loader.get_session() as session, session.begin():
+                await session.execute(delete(Manager).where(Manager.id == test_manager_id))
+        finally:
+            await loader.close()
