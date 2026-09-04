@@ -229,6 +229,79 @@ class DataTransformer:
         return history_records
 
     @staticmethod
+    def transform_event_live_elements(
+        live_data: dict[str, Any],
+        gameweek: int,
+        element_cost_map: dict[int, int] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Transform official FPL /event/{gw}/live/ payload into element_gameweek_history records.
+        Extracts match stats and underlying analytics for all 600+ players in 1 batch.
+        """
+        cost_map = element_cost_map or {}
+        elements_raw = live_data.get("elements", [])
+        history_records = []
+
+        def _to_float(val: Any) -> float | None:
+            if val is None:
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
+        for el in elements_raw:
+            element_id = el["id"]
+            stats = el.get("stats", {})
+
+            pts = stats.get("total_points", 0)
+            metrics = {
+                "starts": stats.get("starts", 0),
+                "played": stats.get("played", False),
+                "in_dreamteam": stats.get("in_dreamteam", False),
+                "influence": _to_float(stats.get("influence", 0)),
+                "creativity": _to_float(stats.get("creativity", 0)),
+                "threat": _to_float(stats.get("threat", 0)),
+                "ict_index": _to_float(stats.get("ict_index", 0)),
+                "clean_sheets": stats.get("clean_sheets", 0),
+                "goals_conceded": stats.get("goals_conceded", 0),
+                "own_goals": stats.get("own_goals", 0),
+                "penalties_saved": stats.get("penalties_saved", 0),
+                "penalties_missed": stats.get("penalties_missed", 0),
+                "yellow_cards": stats.get("yellow_cards", 0),
+                "red_cards": stats.get("red_cards", 0),
+                "saves": stats.get("saves", 0),
+            }
+
+            history_records.append(
+                {
+                    "element_id": element_id,
+                    "gameweek": gameweek,
+                    "minutes": stats.get("minutes", 0),
+                    "total_points": pts,
+                    "goals_scored": stats.get("goals_scored", 0),
+                    "assists": stats.get("assists", 0),
+                    "clean_sheets": stats.get("clean_sheets", 0),
+                    "goals_conceded": stats.get("goals_conceded", 0),
+                    "bonus": stats.get("bonus", 0),
+                    "bps": stats.get("bps", 0),
+                    "expected_goals": _to_float(stats.get("expected_goals")),
+                    "expected_assists": _to_float(stats.get("expected_assists")),
+                    "expected_goal_involvements": _to_float(
+                        stats.get("expected_goal_involvements")
+                    ),
+                    "expected_goals_conceded": _to_float(stats.get("expected_goals_conceded")),
+                    "value": cost_map.get(element_id, 0),
+                    "selected": None,
+                    "rolling_3_points": pts,
+                    "rolling_3_avg": float(pts),
+                    "metrics": metrics,
+                }
+            )
+
+        return history_records
+
+    @staticmethod
     def transform_pipeline_metadata(bootstrap_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Transform bootstrap events into pipeline_metadata records."""
         metadata = []
