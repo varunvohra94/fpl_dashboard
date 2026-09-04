@@ -182,3 +182,55 @@ def test_transform_transfers():
     assert transfers[0]["element_out_id"] == 220
     assert transfers[0]["element_in_cost"] == 150
     assert transfers[0]["element_out_cost"] == 85
+
+
+def test_transform_event_live_elements():
+    raw_live = {
+        "elements": [
+            {
+                "id": 350,
+                "stats": {
+                    "minutes": 90,
+                    "goals_scored": 2,
+                    "assists": 1,
+                    "clean_sheets": 1,
+                    "goals_conceded": 0,
+                    "bonus": 3,
+                    "bps": 45,
+                    "expected_goals": "1.45",
+                    "expected_assists": "0.35",
+                    "expected_goal_involvements": "1.80",
+                    "expected_goals_conceded": "0.25",
+                    "total_points": 16,
+                    "in_dreamteam": True,
+                    "played": True,
+                    "starts": 1,
+                    "influence": "72.4",
+                    "creativity": "35.1",
+                    "threat": "88.0",
+                    "ict_index": "19.5",
+                },
+            }
+        ]
+    }
+    cost_map = {350: 152}
+    history = DataTransformer.transform_event_live_elements(
+        raw_live, gameweek=1, element_cost_map=cost_map
+    )
+
+    assert len(history) == 1
+    rec = history[0]
+    assert rec["element_id"] == 350
+    assert rec["gameweek"] == 1
+    assert rec["minutes"] == 90
+    assert rec["total_points"] == 16
+    assert rec["goals_scored"] == 2
+    assert rec["assists"] == 1
+    assert rec["clean_sheets"] == 1
+    assert rec["bonus"] == 3
+    assert rec["bps"] == 45
+    assert rec["expected_goals"] == 1.45
+    assert rec["expected_assists"] == 0.35
+    assert rec["value"] == 152
+    assert rec["metrics"]["in_dreamteam"] is True
+    assert rec["metrics"]["threat"] == 88.0

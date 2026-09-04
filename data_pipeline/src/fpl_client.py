@@ -158,6 +158,10 @@ class FPLClient:
         """Fetch live player performance and stats for a specific gameweek."""
         return await self._get(f"event/{gameweek}/live/")
 
+    async def get_event_live(self, gameweek: int) -> dict[str, Any]:
+        """Fetch player matchday performance and stats for a specific gameweek (alias for get_live_gameweek)."""
+        return await self.get_live_gameweek(gameweek)
+
     async def get_element_summary(self, element_id: int) -> dict[str, Any]:
         """Fetch match-by-match history and upcoming fixtures for an individual player."""
         return await self._get(f"element-summary/{element_id}/")

@@ -113,15 +113,37 @@ class FPLPipelineRunner:
                 except Exception as exc:  # noqa: BLE001
                     logger.error(f"Error fetching transfers for manager {mgr_id}: {exc}")
 
-            await asyncio.gather(*[_fetch_manager_data(m) for m in managers])
+            # 7. Fetch player live match statistics for target gameweek concurrently with manager data
+            async def _fetch_element_history() -> list[dict[str, Any]]:
+                try:
+                    logger.info(f"Fetching player live match statistics for GW{target_gw}...")
+                    live_data = await self.client.get_event_live(target_gw)
+                    element_cost_map = {
+                        el["id"]: el.get("now_cost", 0) for el in bootstrap_data.get("elements", [])
+                    }
+                    return self.transformer.transform_event_live_elements(
+                        live_data, target_gw, element_cost_map
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(f"Error fetching player live stats for GW{target_gw}: {exc}")
+                    return []
 
-            # 7. Atomically persist managers, scores, and transfers
+            manager_tasks = [_fetch_manager_data(m) for m in managers]
+            element_task = _fetch_element_history()
+            _, element_history = await asyncio.gather(
+                asyncio.gather(*manager_tasks),
+                element_task,
+            )
+
+            # 8. Atomically persist managers, scores, transfers, and player match history
             async with await self.loader.get_session() as session, session.begin():
                 await self.loader.load_managers(session, managers)
                 await self.loader.load_gameweek_scores(session, all_scores)
                 await self.loader.load_transfers(session, all_transfers)
+                if element_history:
+                    await self.loader.load_element_history(session, element_history)
 
-            # 8. Mark pipeline status as COMPLETED
+            # 9. Mark pipeline status as COMPLETED
             async with await self.loader.get_session() as session:
                 await self.loader.update_pipeline_status(session, target_gw, "COMPLETED")
 
@@ -131,6 +153,7 @@ class FPLPipelineRunner:
                 "managers_count": len(managers),
                 "scores_records": len(all_scores),
                 "transfers_records": len(all_transfers),
+                "player_history_records": len(element_history),
             }
             logger.info(f"Ingestion successfully finished: {summary}")
             return summary

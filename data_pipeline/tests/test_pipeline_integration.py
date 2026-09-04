@@ -1,7 +1,13 @@
 """Integration and orchestration tests for the end-to-end ETL Pipeline with automated teardown."""
 
 import pytest
-from backend.app.models import GameweekScore, Manager, PipelineMetadata, Transfer
+from backend.app.models import (
+    ElementGameweekHistory,
+    GameweekScore,
+    Manager,
+    PipelineMetadata,
+    Transfer,
+)
 from sqlalchemy import delete, select
 
 from data_pipeline.src.fpl_client import FPLClient
@@ -127,6 +133,52 @@ class MockFPLClient(FPLClient):
             }
         ]
 
+    async def get_event_live(self, gameweek: int):
+        return {
+            "elements": [
+                {
+                    "id": 350,
+                    "stats": {
+                        "minutes": 90,
+                        "goals_scored": 2,
+                        "assists": 0,
+                        "clean_sheets": 1,
+                        "goals_conceded": 0,
+                        "bonus": 3,
+                        "bps": 40,
+                        "expected_goals": "1.20",
+                        "expected_assists": "0.10",
+                        "expected_goal_involvements": "1.30",
+                        "expected_goals_conceded": "0.40",
+                        "total_points": 13,
+                        "in_dreamteam": True,
+                        "played": True,
+                        "starts": 1,
+                    },
+                },
+                {
+                    "id": 19,
+                    "stats": {
+                        "minutes": 88,
+                        "goals_scored": 1,
+                        "assists": 1,
+                        "clean_sheets": 1,
+                        "goals_conceded": 0,
+                        "bonus": 2,
+                        "bps": 34,
+                        "expected_goals": "0.45",
+                        "expected_assists": "0.60",
+                        "expected_goal_involvements": "1.05",
+                        "expected_goals_conceded": "0.20",
+                        "total_points": 12,
+                        "in_dreamteam": True,
+                        "played": True,
+                        "starts": 1,
+                    },
+                },
+            ]
+        }
+
 
 class MockPipelineLoader(PipelineLoader):
     """In-memory loader mock for validating orchestration without requiring live PostgreSQL container."""
@@ -137,6 +189,7 @@ class MockPipelineLoader(PipelineLoader):
         self.managers = []
         self.scores = []
         self.transfers = []
+        self.element_history = []
         self.metadata = {}
         self.statuses = {}
 
@@ -181,6 +234,10 @@ class MockPipelineLoader(PipelineLoader):
         self.transfers.extend(transfers)
         return len(transfers)
 
+    async def load_element_history(self, session, history_records):
+        self.element_history.extend(history_records)
+        return len(history_records)
+
     async def sync_pipeline_metadata(self, session, metadata_list):
         for m in metadata_list:
             self.metadata[m["gameweek"]] = {**m, "pipeline_run_status": "PENDING"}
@@ -214,6 +271,8 @@ async def test_pipeline_runner_orchestration():
     assert result["managers_count"] == 1
     assert result["scores_records"] == 2
     assert result["transfers_records"] == 1
+    assert result["player_history_records"] == 2
+    assert len(mock_loader.element_history) == 2
 
     # Verify score calculations
     gw1 = next(s for s in mock_loader.scores if s["gameweek"] == 1)
@@ -225,6 +284,12 @@ async def test_pipeline_runner_orchestration():
     assert gw2["event_transfers_cost"] == 4
     assert gw2["chip_used"] == "3xc"
     assert gw2["metrics"]["running_net_points"] == 131
+
+    # Verify player history
+    haaland_hist = next(h for h in mock_loader.element_history if h["element_id"] == 350)
+    assert haaland_hist["total_points"] == 13
+    assert haaland_hist["goals_scored"] == 2
+    assert haaland_hist["expected_goals"] == 1.20
 
     # Verify status completed
     assert mock_loader.statuses[2] == "COMPLETED"
@@ -262,6 +327,16 @@ async def test_live_postgresql_ingestion():
             transfers_stmt = select(Transfer).where(Transfer.manager_id == test_manager_id)
             transfers = (await session.execute(transfers_stmt)).scalars().all()
             assert len(transfers) >= 1
+
+            # Verify player history records were inserted
+            elem_stmt = select(ElementGameweekHistory).where(
+                ElementGameweekHistory.element_id == 350,
+                ElementGameweekHistory.gameweek == 2,
+            )
+            haaland_record = (await session.execute(elem_stmt)).scalar_one_or_none()
+            if haaland_record:
+                assert haaland_record.total_points == 13
+                assert haaland_record.goals_scored == 2
 
     finally:
         # Automated Teardown / Cleanup: Delete test manager (cascades to scores & transfers)
