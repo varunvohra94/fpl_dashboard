@@ -1,0 +1,28 @@
+{
+  "include": [
+    "backend",
+    "data_pipeline"
+  ],
+  "extraPaths": [
+    ".",
+    "backend",
+    "data_pipeline",
+    "data_pipeline/src"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "data_pipeline",
+      "extraPaths": [
+        "data_pipeline",
+        "data_pipeline/src",
+        "backend"
+      ]
+    },
+    {
+      "root": "backend",
+      "extraPaths": [
+        "backend"
+      ]
+    }
+  ]
+}
