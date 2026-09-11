@@ -194,7 +194,7 @@ export default function DashboardPage() {
               }`}
             >
               <BarChart3 className="h-4 w-4" />
-              <span>Race & Analytics</span>
+              <span>Stats</span>
             </button>
 
             <button
