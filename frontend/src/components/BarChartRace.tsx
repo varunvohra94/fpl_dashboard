@@ -32,17 +32,17 @@ interface ManagerState {
 
 type VizMode = "trail" | "bars";
 
-const ROW_HEIGHT = 58;
-const ROW_GAP = 10;
+const ROW_HEIGHT = 60;
+const ROW_GAP = 12;
 const STEP = ROW_HEIGHT + ROW_GAP;
 
 const SPEED_CONFIG: Record<
   number,
   { intervalMs: number; transitionDuration: string }
 > = {
-  0.5: { intervalMs: 4000, transitionDuration: "2200ms" },
-  1: { intervalMs: 2800, transitionDuration: "1500ms" },
-  2: { intervalMs: 1600, transitionDuration: "800ms" },
+  0.5: { intervalMs: 4200, transitionDuration: "2400ms" },
+  1: { intervalMs: 2800, transitionDuration: "1600ms" },
+  2: { intervalMs: 1600, transitionDuration: "900ms" },
 };
 
 export const BarChartRace: React.FC<BarChartRaceProps> = ({
@@ -131,7 +131,6 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
     1
   );
 
-  // Slower, smoother transition duration for readable card glide
   const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
   const transitionDuration = currentSpeedConfig.transitionDuration;
 
@@ -160,8 +159,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               {vizMode === "trail"
-                ? "Explore historical position trails and rank switches across every gameweek"
-                : "Watch weekly overtakes animated with smooth, gentle card movements"}
+                ? "Continuous smooth trajectory lines showing overtakes and rank switches across gameweeks"
+                : "Watch cards physically glide and overtake over each other with smooth spring physics"}
             </p>
           </div>
 
@@ -269,7 +268,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           />
         </div>
 
-        {/* View 1: Bar Chart Race with Slower, Smoother Card Gliding */}
+        {/* View 1: Bar Chart Race with Layer Elevation Physics (Moving Over Each Other) */}
         {vizMode === "bars" && (
           <div
             className="relative w-full mt-4"
@@ -283,21 +282,48 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               );
               const rankDelta = m.prevRank - m.currentRank;
               const isLeader = m.currentRank === 1;
+              const isClimbing = rankDelta > 0;
+              const isFalling = rankDelta < 0;
+
+              // Card Elevation & Layer Physics:
+              // Overtaking climbing cards lift up on the Z-axis with scale and shadow to physically move OVER falling cards!
+              const zIndex = isLeader
+                ? 60
+                : isClimbing
+                ? 50
+                : isFalling
+                ? 10
+                : 25;
+
+              const scale = isLeader
+                ? 1.015
+                : isClimbing
+                ? 1.025
+                : isFalling
+                ? 0.985
+                : 1;
+
+              const opacity = isFalling ? 0.85 : 1;
 
               return (
                 <div
                   key={m.managerId}
                   style={{
                     top: 0,
-                    transform: `translateY(${topPosition}px)`,
+                    transform: `translateY(${topPosition}px) scale(${scale})`,
                     height: `${ROW_HEIGHT}px`,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.2, 0.9, 0.3, 1)`,
-                    zIndex: isLeader ? 20 : 10 - Math.min(m.currentRank, 9),
+                    zIndex,
+                    opacity,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.34, 1.15, 0.64, 1), opacity ${transitionDuration} ease, box-shadow ${transitionDuration} ease, border-color ${transitionDuration} ease`,
                   }}
-                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md transition-shadow duration-300 ${
+                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md will-change-transform ${
                     isLeader
-                      ? "bg-gradient-to-r from-emerald-950/60 via-slate-900/95 to-slate-900/90 border-emerald-500/50 shadow-xl shadow-emerald-500/10"
-                      : "bg-slate-950/70 border-slate-800/80 hover:border-slate-700 shadow-md"
+                      ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90 border-emerald-500/60 shadow-2xl shadow-emerald-500/20"
+                      : isClimbing
+                      ? "bg-slate-900/95 border-emerald-500/50 shadow-2xl shadow-emerald-500/15"
+                      : isFalling
+                      ? "bg-slate-950/70 border-slate-800/60 shadow-md"
+                      : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700 shadow-md"
                   }`}
                 >
                   {/* Rank Position Badge */}
@@ -334,7 +360,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     <div
                       style={{
                         width: `${percentage}%`,
-                        transition: `width ${transitionDuration} cubic-bezier(0.2, 0.9, 0.3, 1)`,
+                        transition: `width ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
                       }}
                       className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all duration-300 ${
                         isLeader
@@ -353,7 +379,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   {/* Weekly Delta Badge */}
                   <div className="w-14 shrink-0 text-right">
                     {rankDelta > 0 ? (
-                      <span className="inline-flex items-center text-[11px] font-black text-emerald-400 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="inline-flex items-center text-[11px] font-black text-emerald-400 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
                         <TrendingUp className="h-3 w-3 mr-0.5" />
                         +{rankDelta}
                       </span>
@@ -376,12 +402,13 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         )}
       </div>
 
-      {/* View 2: Gameweek Rank Trajectory Trail Graph (Default View) */}
+      {/* View 2: Continuous Gameweek Rank Trajectory Trail Graph (Default View) */}
       {vizMode === "trail" && (
         <RankTrajectoryChart
           profiles={profiles}
           currentGw={currentGw}
           maxGw={maxGw}
+          transitionDuration={transitionDuration}
         />
       )}
     </div>

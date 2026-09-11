@@ -8,6 +8,7 @@ interface RankTrajectoryChartProps {
   profiles: ManagerProfileResponse[];
   currentGw: number;
   maxGw: number;
+  transitionDuration?: string;
 }
 
 interface TooltipData {
@@ -43,6 +44,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
   currentGw,
   maxGw,
+  transitionDuration = "1500ms",
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
@@ -51,25 +53,20 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   if (!profiles || profiles.length === 0) return null;
 
   const totalManagers = profiles.length;
-  const gameweeks = Array.from(
-    { length: Math.max(maxGw, 1) },
-    (_, i) => i + 1
-  );
+  const safeMaxGw = Math.max(maxGw, 1);
+  const gameweeks = Array.from({ length: safeMaxGw }, (_, i) => i + 1);
 
   // 1. Calculate cumulative net points and mini-league rank for EVERY manager at EVERY gameweek
-  // Output: trajectoryMap[managerId] = { [gw]: { rank: number, points: number, cumNet: number } }
   const trajectoryMap: Record<
     number,
     Record<number, { rank: number; points: number; cumNet: number }>
   > = {};
 
-  // Initialize map
   profiles.forEach((p) => {
     trajectoryMap[p.id] = {};
   });
 
-  // For each gameweek from 1 to maxGw, compute cumulative scores and sort
-  for (let gw = 1; gw <= maxGw; gw++) {
+  for (let gw = 1; gw <= safeMaxGw; gw++) {
     const gwRankings: { managerId: number; cumNet: number; gwPoints: number }[] = [];
 
     for (const p of profiles) {
@@ -95,7 +92,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
       (a, b) => b.cumNet - a.cumNet || a.managerId - b.managerId
     );
 
-    // Assign rank 1 to N
     gwRankings.forEach((item, idx) => {
       trajectoryMap[item.managerId][gw] = {
         rank: idx + 1,
@@ -114,8 +110,8 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   // Coordinate mappers
   const getX = (gw: number) => {
-    if (maxGw <= 1) return padding.left + graphWidth / 2;
-    return padding.left + ((gw - 1) / (maxGw - 1)) * graphWidth;
+    if (safeMaxGw <= 1) return padding.left + graphWidth / 2;
+    return padding.left + ((gw - 1) / (safeMaxGw - 1)) * graphWidth;
   };
 
   const getY = (rank: number) => {
@@ -123,10 +119,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return padding.top + ((rank - 1) / (totalManagers - 1)) * graphHeight;
   };
 
-  // Generate smooth cubic bezier SVG path for a manager up to a specified end gameweek
-  const generateSmoothPath = (managerId: number, endGw: number) => {
+  // Generate full season smooth cubic bezier SVG path (1 to safeMaxGw)
+  const generateFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
-    for (let gw = 1; gw <= endGw; gw++) {
+    for (let gw = 1; gw <= safeMaxGw; gw++) {
       const data = trajectoryMap[managerId]?.[gw];
       if (data) {
         points.push({ x: getX(gw), y: getY(data.rank) });
@@ -146,6 +142,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return path;
   };
 
+  // Calculate continuous stroke dashoffset (out of pathLength 1000)
+  const progressRatio =
+    safeMaxGw > 1 ? (currentGw - 1) / (safeMaxGw - 1) : 1;
+  const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
+
   const activeFocusId = selectedManagerId || hoveredManagerId;
 
   return (
@@ -159,14 +160,14 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               Gameweek Rank Trail Graph
             </span>
             <span className="text-xs text-slate-400 font-semibold">
-              Live Trail to GW {currentGw}
+              Live Continuous Trail to GW {currentGw}
             </span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
             Season Trajectory & Position Paths
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Hover over any gameweek node or manager line to reveal positions, rank switches, and scores
+            Continuous smooth lines trace weekly rank fluctuations and overtakes across every gameweek
           </p>
         </div>
 
@@ -238,7 +239,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto min-w-[720px] select-none"
         >
-          {/* Filters */}
+          {/* Defs / Glow filter */}
           <defs>
             <filter id="trail-glow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3.5" result="blur" />
@@ -309,7 +310,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             );
           })}
 
-          {/* Active Gameweek Vertical Scrubber Highlighter Band */}
+          {/* Continuous Gliding Active Gameweek Vertical Line */}
           <line
             x1={getX(currentGw)}
             y1={padding.top - 8}
@@ -318,140 +319,152 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             stroke="#00FF87"
             strokeWidth="2"
             strokeDasharray="4 2"
-            opacity="0.7"
+            opacity="0.75"
+            style={{
+              transition: `x1 ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), x2 ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+            }}
           />
 
-          {/* Manager Trajectory Paths */}
+          {/* Manager Continuous Trajectory Trails */}
           {profiles.map((p, idx) => {
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
             const isFocused = activeFocusId === p.id;
             const isDimmed = activeFocusId !== null && !isFocused;
-
-            const activePathData = generateSmoothPath(p.id, currentGw);
-            const fullPathData = generateSmoothPath(p.id, maxGw);
+            const fullPath = generateFullPath(p.id);
 
             return (
               <g key={`path-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
-                {/* Faint Background Full-Season Trail (if currentGw < maxGw) */}
-                {currentGw < maxGw && (
-                  <path
-                    d={fullPathData}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                    opacity="0.22"
-                  />
-                )}
+                {/* Faint Background Full Season Ghost Arc */}
+                <path
+                  d={fullPath}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                  opacity="0.2"
+                />
 
-                {/* Glowing Aura when focused */}
+                {/* Glowing Focus Aura */}
                 {isFocused && (
                   <path
-                    d={activePathData}
+                    d={fullPath}
+                    pathLength={1000}
+                    strokeDasharray={1000}
+                    strokeDashoffset={strokeOffset}
                     fill="none"
                     stroke={color}
                     strokeWidth="9"
                     opacity="0.35"
                     filter="url(#trail-glow)"
-                    className="transition-all duration-300"
+                    style={{
+                      transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                    }}
                   />
                 )}
 
-                {/* Active Trajectory Trail up to currentGw */}
+                {/* Continuous Drawing Active Line */}
                 <path
-                  d={activePathData}
+                  d={fullPath}
+                  pathLength={1000}
+                  strokeDasharray={1000}
+                  strokeDashoffset={strokeOffset}
                   fill="none"
                   stroke={color}
                   strokeWidth={isFocused ? "4.5" : "2.5"}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="transition-all duration-300"
+                  style={{
+                    transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), stroke-width 300ms ease`,
+                  }}
                 />
 
                 {/* Milestone Nodes at every Gameweek along the trail */}
-                {gameweeks
-                  .filter((gw) => gw <= currentGw)
-                  .map((gw) => {
-                    const data = trajectoryMap[p.id]?.[gw];
-                    if (!data) return null;
+                {gameweeks.map((gw) => {
+                  const data = trajectoryMap[p.id]?.[gw];
+                  if (!data) return null;
 
-                    const cx = getX(gw);
-                    const cy = getY(data.rank);
-                    const isLatest = gw === currentGw;
-                    const prevRank =
-                      gw > 1 ? trajectoryMap[p.id]?.[gw - 1]?.rank : undefined;
+                  const cx = getX(gw);
+                  const cy = getY(data.rank);
+                  const isReached = gw <= currentGw;
+                  const isLatest = gw === currentGw;
+                  const prevRank =
+                    gw > 1 ? trajectoryMap[p.id]?.[gw - 1]?.rank : undefined;
 
-                    return (
-                      <g
-                        key={`node-${p.id}-gw-${gw}`}
-                        className="cursor-pointer"
-                        onMouseEnter={() => {
-                          setHoveredManagerId(p.id);
-                          setTooltip({
-                            managerName: p.player_name || "Manager",
-                            teamName: p.entry_name || "Squad",
-                            gameweek: gw,
-                            rank: data.rank,
-                            prevRank,
-                            gwPoints: data.points,
-                            cumNet: data.cumNet,
-                            x: cx,
-                            y: cy,
-                            color,
-                          });
-                        }}
-                        onMouseLeave={() => {
-                          setHoveredManagerId(null);
-                          setTooltip(null);
-                        }}
-                        onClick={() =>
-                          setSelectedManagerId(
-                            selectedManagerId === p.id ? null : p.id
-                          )
-                        }
-                      >
-                        {/* Static Subtle Halo on Active/Current Gameweek Node (No blinking) */}
-                        {isLatest && (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r="8.5"
-                            fill="none"
-                            stroke={color}
-                            strokeWidth="1.5"
-                            opacity="0.6"
-                          />
-                        )}
-
-                        {/* Node Body */}
+                  return (
+                    <g
+                      key={`node-${p.id}-gw-${gw}`}
+                      className="cursor-pointer"
+                      style={{
+                        opacity: isReached ? 1 : 0.2,
+                        transition: `opacity ${transitionDuration} ease`,
+                      }}
+                      onMouseEnter={() => {
+                        setHoveredManagerId(p.id);
+                        setTooltip({
+                          managerName: p.player_name || "Manager",
+                          teamName: p.entry_name || "Squad",
+                          gameweek: gw,
+                          rank: data.rank,
+                          prevRank,
+                          gwPoints: data.points,
+                          cumNet: data.cumNet,
+                          x: cx,
+                          y: cy,
+                          color,
+                        });
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredManagerId(null);
+                        setTooltip(null);
+                      }}
+                      onClick={() =>
+                        setSelectedManagerId(
+                          selectedManagerId === p.id ? null : p.id
+                        )
+                      }
+                    >
+                      {/* Halo ring for active/latest node */}
+                      {isLatest && (
                         <circle
                           cx={cx}
                           cy={cy}
-                          r={isFocused || isLatest ? "5.5" : "4"}
-                          fill={isFocused || isLatest ? color : "#0B0F19"}
+                          r="8.5"
+                          fill="none"
                           stroke={color}
-                          strokeWidth="2.5"
-                          className="transition-transform duration-200 hover:scale-125"
+                          strokeWidth="1.5"
+                          opacity="0.6"
                         />
+                      )}
 
-                        {/* Rank Number above circle if focused */}
-                        {isFocused && (
-                          <text
-                            x={cx}
-                            y={cy - 9}
-                            textAnchor="middle"
-                            fill={color}
-                            fontSize="9"
-                            fontWeight="900"
-                          >
-                            #{data.rank}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
+                      {/* Node Body */}
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={isFocused || isLatest ? "5.5" : "4"}
+                        fill={isFocused || isLatest ? color : "#0B0F19"}
+                        stroke={color}
+                        strokeWidth="2.5"
+                        className="transition-transform duration-200 hover:scale-125"
+                      />
 
-                {/* Rightmost Trail Label Pill at currentGw */}
+                      {/* Rank Number above circle if focused */}
+                      {isFocused && isReached && (
+                        <text
+                          x={cx}
+                          y={cy - 9}
+                          textAnchor="middle"
+                          fill={color}
+                          fontSize="9"
+                          fontWeight="900"
+                        >
+                          #{data.rank}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* Continuous Gliding Manager Label Pill */}
                 {(() => {
                   const data = trajectoryMap[p.id]?.[currentGw];
                   if (!data) return null;
@@ -462,6 +475,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     <g
                       key={`label-${p.id}`}
                       className="cursor-pointer select-none"
+                      style={{
+                        transform: `translate(${lx}px, ${ly}px)`,
+                        transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                      }}
                       onClick={() =>
                         setSelectedManagerId(
                           selectedManagerId === p.id ? null : p.id
@@ -471,8 +488,8 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       onMouseLeave={() => setHoveredManagerId(null)}
                     >
                       <rect
-                        x={lx - 4}
-                        y={ly - 10}
+                        x={-4}
+                        y={-10}
                         width="132"
                         height="20"
                         rx="6"
@@ -481,14 +498,14 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         strokeWidth={isFocused ? "1.5" : "1"}
                       />
                       <circle
-                        cx={lx + 4}
-                        cy={ly}
+                        cx={4}
+                        cy={0}
                         r="3.5"
                         fill={color}
                       />
                       <text
-                        x={lx + 13}
-                        y={ly + 3.5}
+                        x={13}
+                        y={3.5}
                         fill={isFocused ? "#FFFFFF" : color}
                         fontSize="10"
                         fontWeight="800"
