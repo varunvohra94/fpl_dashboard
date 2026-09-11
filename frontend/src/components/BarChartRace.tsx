@@ -139,8 +139,9 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Analytics Master Controls Card */}
-      <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-5 sm:p-7 shadow-2xl overflow-hidden">
+      {/* Analytics Master Unified Card */}
+      <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-5 sm:p-7 shadow-2xl overflow-hidden space-y-6">
+        {/* Top Header & Controls */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
           <div>
             <div className="flex items-center gap-2">
@@ -246,32 +247,17 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           </div>
         </div>
 
-        {/* Gameweek Scrubber Slider */}
-        <div className="my-6 p-4 rounded-2xl bg-slate-950/90 border border-slate-800/80">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2.5">
-            <span>GW 1</span>
-            <span className="text-emerald-400 font-black text-sm px-3 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-              Gameweek {currentGw}
-            </span>
-            <span>GW {maxGw}</span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={Math.max(maxGw, 1)}
-            value={currentGw}
-            onChange={(e) => {
-              setIsPlaying(false);
-              setCurrentGw(Number(e.target.value));
-            }}
-            className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+        {/* Main Content Area: Trail Graph or Bar Race */}
+        {vizMode === "trail" ? (
+          <RankTrajectoryChart
+            profiles={profiles}
+            currentGw={currentGw}
+            maxGw={maxGw}
+            transitionDuration={transitionDuration}
           />
-        </div>
-
-        {/* View 1: Bar Chart Race with Layer Elevation Physics (Moving Over Each Other) */}
-        {vizMode === "bars" && (
+        ) : (
           <div
-            className="relative w-full mt-4"
+            className="relative w-full"
             style={{ height: `${containerHeight}px` }}
           >
             {currentStandings.map((m) => {
@@ -400,17 +386,31 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             })}
           </div>
         )}
-      </div>
 
-      {/* View 2: Continuous Gameweek Rank Trajectory Trail Graph (Default View) */}
-      {vizMode === "trail" && (
-        <RankTrajectoryChart
-          profiles={profiles}
-          currentGw={currentGw}
-          maxGw={maxGw}
-          transitionDuration={transitionDuration}
-        />
-      )}
+        {/* Gameweek Scrubber Slider (Positioned at the BOTTOM of the visualization) */}
+        <div className="pt-4 border-t border-slate-800/80">
+          <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2.5">
+              <span>GW 1</span>
+              <span className="text-emerald-400 font-black text-sm px-3.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                Gameweek {currentGw}
+              </span>
+              <span>GW {maxGw}</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={Math.max(maxGw, 1)}
+              value={currentGw}
+              onChange={(e) => {
+                setIsPlaying(false);
+                setCurrentGw(Number(e.target.value));
+              }}
+              className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

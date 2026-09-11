@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { TrendingUp } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -150,28 +149,55 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   const activeFocusId = selectedManagerId || hoveredManagerId;
 
   return (
-    <div className="rounded-3xl bg-slate-900/90 border border-slate-800/90 backdrop-blur-xl p-5 sm:p-7 shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-800/80">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase tracking-wider flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5" />
-              Gameweek Rank Trail Graph
-            </span>
-            <span className="text-xs text-slate-400 font-semibold">
-              Live Continuous Trail to GW {currentGw}
-            </span>
-          </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
-            Season Trajectory & Position Paths
-          </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Continuous smooth lines trace weekly rank fluctuations and overtakes across every gameweek
-          </p>
+    <div className="w-full space-y-4">
+      {/* Legend / Filter Pills */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {profiles.map((p, idx) => {
+            const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+            const isFocused = activeFocusId === p.id;
+            const isDimmed = activeFocusId !== null && !isFocused;
+            const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
+
+            return (
+              <button
+                key={p.id}
+                onMouseEnter={() => setHoveredManagerId(p.id)}
+                onMouseLeave={() => setHoveredManagerId(null)}
+                onClick={() =>
+                  setSelectedManagerId(selectedManagerId === p.id ? null : p.id)
+                }
+                style={{
+                  borderColor: isFocused ? color : undefined,
+                  boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  isFocused
+                    ? "bg-slate-800 text-white"
+                    : isDimmed
+                    ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
+                    : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                }`}
+              >
+                <div
+                  className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                  style={{ backgroundColor: color }}
+                />
+                <span className="truncate max-w-[110px]">{p.player_name}</span>
+                <span
+                  className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: `${color}20`,
+                    color: color,
+                  }}
+                >
+                  #{currentRank}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Instructions / Reset Focus */}
         {activeFocusId && (
           <button
             onClick={() => {
@@ -179,62 +205,15 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               setHoveredManagerId(null);
               setTooltip(null);
             }}
-            className="text-xs font-bold px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 self-start sm:self-auto transition-colors cursor-pointer shadow-sm"
+            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer shadow-sm shrink-0"
           >
-            Clear Manager Filter
+            Clear Filter
           </button>
         )}
       </div>
 
-      {/* Interactive Manager Legend / Filter Pills */}
-      <div className="flex flex-wrap gap-2 my-4">
-        {profiles.map((p, idx) => {
-          const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-          const isFocused = activeFocusId === p.id;
-          const isDimmed = activeFocusId !== null && !isFocused;
-          const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
-
-          return (
-            <button
-              key={p.id}
-              onMouseEnter={() => setHoveredManagerId(p.id)}
-              onMouseLeave={() => setHoveredManagerId(null)}
-              onClick={() =>
-                setSelectedManagerId(selectedManagerId === p.id ? null : p.id)
-              }
-              style={{
-                borderColor: isFocused ? color : undefined,
-                boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                isFocused
-                  ? "bg-slate-800 text-white"
-                  : isDimmed
-                  ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
-                  : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
-              }`}
-            >
-              <div
-                className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                style={{ backgroundColor: color }}
-              />
-              <span className="truncate max-w-[110px]">{p.player_name}</span>
-              <span
-                className="text-[10px] font-black px-1.5 py-0.5 rounded"
-                style={{
-                  backgroundColor: `${color}20`,
-                  color: color,
-                }}
-              >
-                #{currentRank}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* SVG Bump Chart Canvas */}
-      <div className="relative overflow-x-auto w-full mt-2">
+      <div className="relative overflow-x-auto w-full">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto min-w-[720px] select-none"
