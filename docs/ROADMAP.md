@@ -27,10 +27,12 @@
 *   [x] **Write tests for data serialization** and containerize the API. (Docker)
 *   [ ] **Deploy the API as a serverless container**, ensuring it scales to zero during the week to optimize costs. (Cloud Run)
 
-## Phase 5: The Mobile-Responsive UI (MVP)
-*   [ ] **Scaffold the frontend framework** and configure utility-first styling for rapid, responsive layouts. (Next.js, Tailwind CSS)
-*   [ ] **Build the 'News Feed' component** to display a timeline of manager transfers and chip usage post-gameweek.
-*   [ ] **Construct the custom Standings Table** with integrated columns for rolling 3-game averages.
+## Phase 5: The Mobile-Responsive UI & Analytics Platform (MVP)
+*   [x] **Scaffold the frontend framework** and configure utility-first styling for rapid, responsive layouts. (Next.js, Tailwind CSS)
+*   [x] **Build the 'News Feed' component** to display a timeline of manager transfers and chip usage post-gameweek.
+*   [x] **Construct the custom Standings Table** with integrated columns for rolling 3-game averages, net points, and hit costs.
+*   [x] **Build Gameweek Intelligence Highlights** (Record Hauls, Bench Regrets, Gambler, and Form King with tie handling).
+*   [x] **Implement Interactive Visualizations** (Animated Bar Chart Race, Form vs Hits Matrix, Chip Matrix Table).
 *   [ ] **Deploy the frontend to a public URL** to facilitate easy sharing among league members.
 
 ## Phase 6: Advanced Analytics & Expansion (Post-MVP)
