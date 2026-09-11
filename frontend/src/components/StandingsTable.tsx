@@ -2,48 +2,71 @@
 
 import React, { useState } from "react";
 import {
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Sparkles,
   ArrowUpDown,
   Search,
+  Trophy,
+  Calendar,
+  ChevronDown,
+  Globe,
 } from "lucide-react";
 import { StandingsEntry } from "../lib/types";
 
 interface StandingsTableProps {
   standings: StandingsEntry[];
   selectedGw: number;
+  maxAvailableGw: number;
+  onSelectGw?: (gw: number) => void;
   onSelectManager: (managerId: number) => void;
 }
 
+type ViewScope = "season" | "gameweek";
+
 type SortField =
-  | "rank"
+  | "league_rank"
   | "total_net_points"
-  | "rolling_3_avg"
   | "net_points"
-  | "event_transfers_cost";
+  | "rolling_3_avg"
+  | "event_transfers_cost"
+  | "overall_rank";
 
 export const StandingsTable: React.FC<StandingsTableProps> = ({
   standings,
   selectedGw,
+  maxAvailableGw,
+  onSelectGw,
   onSelectManager,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState<SortField>("rank");
+  const [viewScope, setViewScope] = useState<ViewScope>("season");
+  const [sortField, setSortField] = useState<SortField>("league_rank");
   const [sortAsc, setSortAsc] = useState(true);
 
+  // 1. Calculate Mini-League ranks based on viewScope
+  const rankedData = [...(standings || [])]
+    .sort((a, b) => {
+      if (viewScope === "season") {
+        return (b.total_net_points ?? 0) - (a.total_net_points ?? 0);
+      }
+      return (b.net_points ?? 0) - (a.net_points ?? 0);
+    })
+    .map((item, idx) => ({
+      ...item,
+      league_rank: idx + 1,
+    }));
+
+  // 2. Handle user custom column sorting
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(field === "rank" || field === "event_transfers_cost");
+      setSortAsc(field === "league_rank" || field === "overall_rank");
     }
   };
 
-  // Safe search and sorting with fallbacks
-  const filteredStandings = standings
+  // 3. Filter by search query
+  const filteredStandings = rankedData
     .filter((s) => {
       const pName = (s.player_name || "").toLowerCase();
       const eName = (s.entry_name || "").toLowerCase();
@@ -51,8 +74,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       return pName.includes(query) || eName.includes(query);
     })
     .sort((a, b) => {
-      let valA = a[sortField] ?? 0;
-      let valB = b[sortField] ?? 0;
+      const valA = a[sortField] ?? 0;
+      const valB = b[sortField] ?? 0;
       return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
     });
 
@@ -98,30 +121,95 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
 
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
-      {/* Table Controls */}
-      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* Table Header Controls */}
+      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <span>Mini-League Rival Standings</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-semibold border border-slate-700">
-              GW {selectedGw}
+          <div className="flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-black text-white">
+              Mini-League Rival Standings
+            </h3>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
+              {viewScope === "season"
+                ? `Cumulative Season (GW 1-${selectedGw})`
+                : `Gameweek ${selectedGw} Specific`}
             </span>
-          </h3>
+          </div>
           <p className="text-xs text-slate-400 mt-0.5">
-            Ranked by true Net Points (deducting transfer hit costs)
+            {viewScope === "season"
+              ? "Cumulative season leaderboard strictly within this mini-league (Net Points after hit deductions)"
+              : `Single gameweek rank within this mini-league for GW ${selectedGw}`}
           </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search manager or team..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors"
-          />
+        {/* View Scope & GW Selector Dropdown */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          {/* Scope Toggle */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            <button
+              onClick={() => {
+                setViewScope("season");
+                setSortField("league_rank");
+                setSortAsc(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                viewScope === "season"
+                  ? "bg-emerald-500 text-slate-950 shadow-md font-black"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              <span>Overall Season</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setViewScope("gameweek");
+                setSortField("league_rank");
+                setSortAsc(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                viewScope === "gameweek"
+                  ? "bg-cyan-500 text-slate-950 shadow-md font-black"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span>GW {selectedGw} Only</span>
+            </button>
+          </div>
+
+          {/* GW Dropdown */}
+          {onSelectGw && (
+            <div className="relative">
+              <select
+                value={selectedGw}
+                onChange={(e) => onSelectGw(Number(e.target.value))}
+                className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                {Array.from(
+                  { length: Math.max(maxAvailableGw, 1) },
+                  (_, i) => i + 1
+                ).map((gw) => (
+                  <option key={gw} value={gw}>
+                    Gameweek {gw}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
+            </div>
+          )}
+
+          {/* Search Bar */}
+          <div className="relative flex-1 sm:w-48 lg:w-44">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors"
+            />
+          </div>
         </div>
       </div>
 
@@ -131,59 +219,91 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <th
-                onClick={() => handleSort("rank")}
-                className="py-3 px-4 cursor-pointer hover:text-white transition-colors"
+                onClick={() => handleSort("league_rank")}
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
-                  <span>Rank</span>
+                  <span>League Rank</span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
-              <th className="py-3 px-4">Manager / Squad</th>
+              <th className="py-3.5 px-4">Manager / Team</th>
+
+              {/* Main Net Points Column */}
               <th
-                onClick={() => handleSort("total_net_points")}
-                className="py-3 px-4 cursor-pointer hover:text-white transition-colors"
+                onClick={() =>
+                  handleSort(
+                    viewScope === "season" ? "total_net_points" : "net_points"
+                  )
+                }
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
-                  <span>Net Points</span>
+                  <span>
+                    {viewScope === "season" ? "Season Net Points" : `GW${selectedGw} Net Score`}
+                  </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
+
+              {/* Transfer Hits */}
               <th
                 onClick={() => handleSort("event_transfers_cost")}
-                className="py-3 px-4 cursor-pointer hover:text-white transition-colors hidden md:table-cell"
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden md:table-cell"
               >
                 <div className="flex items-center gap-1">
-                  <span>GW Hits</span>
+                  <span>
+                    {viewScope === "season" ? "GW Hits" : `GW${selectedGw} Hits`}
+                  </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
+
+              {/* Rolling 3-GW Form */}
               <th
                 onClick={() => handleSort("rolling_3_avg")}
-                className="py-3 px-4 cursor-pointer hover:text-white transition-colors"
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
                   <span>3-GW Form</span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
+
+              {/* Secondary Points Column */}
               <th
-                onClick={() => handleSort("net_points")}
-                className="py-3 px-4 cursor-pointer hover:text-white transition-colors"
+                onClick={() =>
+                  handleSort(
+                    viewScope === "season" ? "net_points" : "total_net_points"
+                  )
+                }
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden sm:table-cell"
               >
                 <div className="flex items-center gap-1">
-                  <span>GW{selectedGw} Net</span>
+                  <span>
+                    {viewScope === "season" ? `GW${selectedGw} Net` : "Season Total Net"}
+                  </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
-              <th className="py-3 px-4 hidden lg:table-cell">Overall Rank</th>
+
+              {/* Global FPL Rank */}
+              <th
+                onClick={() => handleSort("overall_rank")}
+                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden lg:table-cell"
+              >
+                <div className="flex items-center gap-1">
+                  <Globe className="h-3 w-3 text-slate-500" />
+                  <span>Global Rank</span>
+                  <ArrowUpDown className="h-3 w-3" />
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
             {filteredStandings.map((manager, idx) => {
               const chip = getChipLabel(manager.chip_used);
-              const rank = manager.rank ?? idx + 1;
-              const isLeader = rank === 1;
+              const isLeader = manager.league_rank === 1;
 
               return (
                 <tr
@@ -197,22 +317,24 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                       : "bg-slate-950/20 hover:bg-slate-800/40"
                   }`}
                 >
-                  {/* Rank */}
+                  {/* Leftmost Mini-League Rank strictly (1 to N) */}
                   <td className="py-3.5 px-4 font-bold tabular-nums">
-                    <span
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black ${
-                        isLeader
-                          ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30"
-                          : rank <= 3
-                          ? "bg-slate-800 text-slate-200 border border-slate-700"
-                          : "text-slate-400"
-                      }`}
-                    >
-                      {rank}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black ${
+                          isLeader
+                            ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30"
+                            : manager.league_rank <= 3
+                            ? "bg-slate-800 text-slate-200 border border-slate-700"
+                            : "text-slate-400 font-bold"
+                        }`}
+                      >
+                        {manager.league_rank}
+                      </span>
+                    </div>
                   </td>
 
-                  {/* Manager & Team */}
+                  {/* Manager & Team Name */}
                   <td className="py-3.5 px-4">
                     <div className="font-bold text-white hover:text-emerald-400 transition-colors">
                       {manager.player_name || "Manager"}
@@ -222,15 +344,26 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Net Points (Hero) */}
+                  {/* Primary Hero Points (Season Total or GW Net) */}
                   <td className="py-3.5 px-4 font-black tabular-nums text-sm text-emerald-400">
-                    {manager.total_net_points}
-                    <span className="text-[10px] text-slate-500 font-normal ml-1 hidden sm:inline">
-                      ({manager.total_points} gross)
-                    </span>
+                    {viewScope === "season" ? (
+                      <>
+                        <span>{manager.total_net_points} pts</span>
+                        <span className="text-[10px] text-slate-500 font-normal ml-1.5 hidden sm:inline">
+                          ({manager.total_points} gross)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{manager.net_points} pts</span>
+                        <span className="text-[10px] text-slate-500 font-normal ml-1.5 hidden sm:inline">
+                          ({manager.points} gross)
+                        </span>
+                      </>
+                    )}
                   </td>
 
-                  {/* GW Hits */}
+                  {/* Transfer Hits */}
                   <td className="py-3.5 px-4 tabular-nums hidden md:table-cell">
                     {manager.event_transfers_cost > 0 ? (
                       <span className="font-bold text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
@@ -254,10 +387,14 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </span>
                   </td>
 
-                  {/* GW Net Score & Active Chip */}
-                  <td className="py-3.5 px-4 tabular-nums font-bold text-white">
+                  {/* Secondary Points Column */}
+                  <td className="py-3.5 px-4 tabular-nums font-semibold text-slate-200 hidden sm:table-cell">
                     <div className="flex items-center gap-2">
-                      <span>{manager.net_points} pts</span>
+                      <span>
+                        {viewScope === "season"
+                          ? `${manager.net_points} pts`
+                          : `${manager.total_net_points} pts`}
+                      </span>
                       {chip && (
                         <span
                           className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${chip.color}`}
@@ -269,7 +406,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </div>
                   </td>
 
-                  {/* Overall Rank */}
+                  {/* Global FPL Rank */}
                   <td className="py-3.5 px-4 tabular-nums text-slate-400 font-medium hidden lg:table-cell">
                     {manager.overall_rank
                       ? manager.overall_rank.toLocaleString()

@@ -218,6 +218,8 @@ export default function DashboardPage() {
               <StandingsTable
                 standings={standingsData?.standings || []}
                 selectedGw={selectedGw}
+                maxAvailableGw={maxAvailableGw}
+                onSelectGw={(gw) => setSelectedGw(gw)}
                 onSelectManager={(id) => setSelectedManagerId(id)}
               />
             </div>

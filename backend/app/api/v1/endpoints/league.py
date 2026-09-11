@@ -122,6 +122,10 @@ async def get_league_standings(
     # Sort standings by total net points descending (and net points descending as tiebreaker)
     entries.sort(key=lambda e: (e.total_net_points, e.net_points), reverse=True)
 
+    # Assign sequential Mini-League rank (1 to N)
+    for idx, entry in enumerate(entries):
+        entry.rank = idx + 1
+
     return LeagueStandingsResponse(
         league_id=league_id,
         gameweek=gameweek,
