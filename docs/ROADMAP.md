@@ -22,9 +22,9 @@
 *   [x] **Containerize the ETL job** to be triggered automatically upon successful polling validation. (Docker)
 
 ## Phase 4: Backend API Services
-*   [ ] **Initialize the API service** to expose endpoints for the UI (e.g., `/api/v1/league/standings`, `/api/v1/league/transfers`). (FastAPI)
-*   [ ] **Implement server-side logic** to format custom metrics (rolling averages, form indicators).
-*   [ ] **Write tests for data serialization** and containerize the API. (Docker)
+*   [x] **Initialize the API service** to expose endpoints for the UI (e.g., `/api/v1/league/standings`, `/api/v1/league/transfers`). (FastAPI)
+*   [x] **Implement server-side logic** to format custom metrics (rolling averages, form indicators).
+*   [x] **Write tests for data serialization** and containerize the API. (Docker)
 *   [ ] **Deploy the API as a serverless container**, ensuring it scales to zero during the week to optimize costs. (Cloud Run)
 
 ## Phase 5: The Mobile-Responsive UI (MVP)
