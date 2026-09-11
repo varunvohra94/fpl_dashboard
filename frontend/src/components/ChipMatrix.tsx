@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, Sparkles, ShieldAlert } from "lucide-react";
+import { Check } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface ChipMatrixProps {
@@ -46,19 +46,33 @@ export const ChipMatrix: React.FC<ChipMatrixProps> = ({ profiles }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
-            {profiles.map((p) => {
-              const usedChipsCount = Object.keys(p.chips_used || {}).length;
-              const remainingCount = CHIP_LIST.length - usedChipsCount;
+            {(profiles || []).map((p) => {
+              // Convert chips_used array to map: chip -> gameweek
+              const chipMap: Record<string, number> = {};
+              if (Array.isArray(p.chips_used)) {
+                for (const item of p.chips_used) {
+                  if (item?.chip) {
+                    chipMap[item.chip] = item.gameweek;
+                  }
+                }
+              }
+
+              const usedChipsCount = Object.keys(chipMap).length;
+              const remainingCount = Math.max(0, CHIP_LIST.length - usedChipsCount);
 
               return (
-                <tr key={p.manager_id} className="hover:bg-slate-800/30 transition-colors">
+                <tr key={p.id} className="hover:bg-slate-800/30 transition-colors">
                   <td className="py-3 px-4">
-                    <span className="font-bold text-white block">{p.manager_name}</span>
-                    <span className="text-[10px] text-slate-500 block">{p.team_name}</span>
+                    <span className="font-bold text-white block">
+                      {p.player_name || "Manager"}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      {p.entry_name || "Squad"}
+                    </span>
                   </td>
 
                   {CHIP_LIST.map((c) => {
-                    const playedGw = p.chips_used?.[c.key];
+                    const playedGw = chipMap[c.key];
 
                     return (
                       <td key={c.key} className="py-3 px-4 text-center">

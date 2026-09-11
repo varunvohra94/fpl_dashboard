@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X, Trophy, Sparkles, TrendingUp, Armchair, AlertCircle } from "lucide-react";
+import { X, Sparkles, AlertCircle } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 import { fetchManagerHistory } from "../lib/api";
 
@@ -40,6 +40,16 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
 
   if (!managerId) return null;
 
+  // Convert chips_used array to map: chip -> gameweek
+  const chipMap: Record<string, number> = {};
+  if (Array.isArray(profile?.chips_used)) {
+    for (const item of profile.chips_used) {
+      if (item?.chip) {
+        chipMap[item.chip] = item.gameweek;
+      }
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md">
       <div className="relative w-full max-w-3xl max-h-[90vh] rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -52,15 +62,15 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
               </span>
               {profile && (
                 <span className="text-xs text-slate-500 font-medium">
-                  Entry #{profile.fpl_entry_id}
+                  Entry #{profile.id}
                 </span>
               )}
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-white mt-1">
-              {profile?.manager_name || "Loading Manager..."}
+              {profile?.player_name || "Loading Manager..."}
             </h2>
             <p className="text-xs text-slate-400 font-medium">
-              {profile?.team_name || "Fetching historical statistics..."}
+              {profile?.entry_name || "Fetching historical statistics..."}
             </p>
           </div>
 
@@ -109,7 +119,7 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
                     Gameweeks Played
                   </span>
                   <span className="text-xl font-black text-cyan-400 tabular-nums block mt-0.5">
-                    {profile.gameweek_history.length}
+                    {profile.history?.length || 0}
                   </span>
                 </div>
                 <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80">
@@ -117,7 +127,7 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
                     Chips Deployed
                   </span>
                   <span className="text-xl font-black text-purple-400 tabular-nums block mt-0.5">
-                    {Object.keys(profile.chips_used || {}).length} / 5
+                    {Object.keys(chipMap).length} / 4
                   </span>
                 </div>
               </div>
@@ -130,7 +140,7 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {["wildcard", "freehit", "bboost", "3xc"].map((chipKey) => {
-                    const usedInGw = profile.chips_used?.[chipKey];
+                    const usedInGw = chipMap[chipKey];
                     const labels: Record<string, string> = {
                       wildcard: "Wildcard",
                       freehit: "Free Hit",
@@ -184,36 +194,41 @@ export const ManagerModal: React.FC<ManagerModalProps> = ({ managerId, onClose }
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 tabular-nums">
-                      {profile.gameweek_history.map((gw) => (
-                        <tr key={gw.gameweek} className="hover:bg-slate-900/50">
-                          <td className="py-2.5 px-3.5 font-bold text-white">GW {gw.gameweek}</td>
-                          <td className="py-2.5 px-3.5 font-semibold text-slate-300">{gw.points}</td>
-                          <td className="py-2.5 px-3.5">
-                            {gw.event_transfers_cost > 0 ? (
-                              <span className="font-bold text-rose-400">-{gw.event_transfers_cost}</span>
-                            ) : (
-                              <span className="text-slate-600">0</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3.5 font-bold text-emerald-400">{gw.net_points}</td>
-                          <td className="py-2.5 px-3.5 text-cyan-400 font-semibold">
-                            {gw.rolling_3gw_average.toFixed(1)}
-                          </td>
-                          <td className="py-2.5 px-3.5 text-slate-400">
-                            {gw.points_on_bench > 0 ? (
-                              <span className="text-amber-400 font-medium">{gw.points_on_bench} pts</span>
-                            ) : (
-                              <span className="text-slate-600">0</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3.5 font-bold text-purple-400">
-                            {gw.chip_used || "—"}
-                          </td>
-                          <td className="py-2.5 px-3.5 text-slate-400">
-                            {gw.overall_rank ? gw.overall_rank.toLocaleString() : "—"}
-                          </td>
-                        </tr>
-                      ))}
+                      {(profile.history || []).map((gw) => {
+                        const benched = gw.metrics?.points_on_bench || 0;
+                        return (
+                          <tr key={gw.gameweek} className="hover:bg-slate-900/50">
+                            <td className="py-2.5 px-3.5 font-bold text-white">GW {gw.gameweek}</td>
+                            <td className="py-2.5 px-3.5 font-semibold text-slate-300">{gw.points}</td>
+                            <td className="py-2.5 px-3.5">
+                              {gw.event_transfers_cost > 0 ? (
+                                <span className="font-bold text-rose-400">-{gw.event_transfers_cost}</span>
+                              ) : (
+                                <span className="text-slate-600">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3.5 font-bold text-emerald-400">{gw.net_points}</td>
+                            <td className="py-2.5 px-3.5 text-cyan-400 font-semibold">
+                              {gw.rolling_3_avg !== null && gw.rolling_3_avg !== undefined
+                                ? gw.rolling_3_avg.toFixed(1)
+                                : "—"}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-400">
+                              {benched > 0 ? (
+                                <span className="text-amber-400 font-medium">{benched} pts</span>
+                              ) : (
+                                <span className="text-slate-600">0</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3.5 font-bold text-purple-400">
+                              {gw.chip_used || "—"}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-400">
+                              {gw.overall_rank ? gw.overall_rank.toLocaleString() : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

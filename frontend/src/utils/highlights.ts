@@ -23,7 +23,7 @@ export const evalSeasonRecordHaul: CardEvaluator = (
   profiles,
   _selectedGw
 ) => {
-  if (!profiles.length) return null;
+  if (!profiles || !profiles.length) return null;
 
   let maxScore = -1;
   interface RecordHolder {
@@ -35,21 +35,22 @@ export const evalSeasonRecordHaul: CardEvaluator = (
   let holders: RecordHolder[] = [];
 
   for (const p of profiles) {
-    for (const h of p.gameweek_history) {
+    const history = p.history || [];
+    for (const h of history) {
       if (h.points > maxScore) {
         maxScore = h.points;
         holders = [
           {
-            managerName: p.manager_name,
-            teamName: p.team_name,
+            managerName: p.player_name || "Manager",
+            teamName: p.entry_name || "Squad",
             gw: h.gameweek,
             points: h.points,
           },
         ];
       } else if (h.points === maxScore && maxScore > 0) {
         holders.push({
-          managerName: p.manager_name,
-          teamName: p.team_name,
+          managerName: p.player_name || "Manager",
+          teamName: p.entry_name || "Squad",
           gw: h.gameweek,
           points: h.points,
         });
@@ -90,7 +91,7 @@ export const evalBenchRegrets: CardEvaluator = (
   profiles,
   _selectedGw
 ) => {
-  if (!profiles.length) return null;
+  if (!profiles || !profiles.length) return null;
 
   let maxBenchPoints = -1;
   interface BenchHolder {
@@ -101,24 +102,25 @@ export const evalBenchRegrets: CardEvaluator = (
   let holders: BenchHolder[] = [];
 
   for (const p of profiles) {
-    const totalBench = p.gameweek_history.reduce(
-      (sum, gw) => sum + (gw.points_on_bench || 0),
-      0
-    );
+    const history = p.history || [];
+    const totalBench = history.reduce((sum, gw) => {
+      const benched = gw.metrics?.points_on_bench || 0;
+      return sum + benched;
+    }, 0);
 
     if (totalBench > maxBenchPoints) {
       maxBenchPoints = totalBench;
       holders = [
         {
-          managerName: p.manager_name,
-          teamName: p.team_name,
+          managerName: p.player_name || "Manager",
+          teamName: p.entry_name || "Squad",
           totalBench,
         },
       ];
     } else if (totalBench === maxBenchPoints && maxBenchPoints > 0) {
       holders.push({
-        managerName: p.manager_name,
-        teamName: p.team_name,
+        managerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
         totalBench,
       });
     }
@@ -157,7 +159,7 @@ export const evalTheGambler: CardEvaluator = (
   profiles,
   _selectedGw
 ) => {
-  if (!profiles.length) return null;
+  if (!profiles || !profiles.length) return null;
 
   let maxHitsCost = -1;
   interface GamblerHolder {
@@ -168,24 +170,21 @@ export const evalTheGambler: CardEvaluator = (
   let holders: GamblerHolder[] = [];
 
   for (const p of profiles) {
-    const totalHits = p.gameweek_history.reduce(
-      (sum, gw) => sum + (gw.event_transfers_cost || 0),
-      0
-    );
+    const totalHits = p.total_hits_cost || 0;
 
     if (totalHits > maxHitsCost) {
       maxHitsCost = totalHits;
       holders = [
         {
-          managerName: p.manager_name,
-          teamName: p.team_name,
+          managerName: p.player_name || "Manager",
+          teamName: p.entry_name || "Squad",
           totalHitsCost: totalHits,
         },
       ];
     } else if (totalHits === maxHitsCost && maxHitsCost > 0) {
       holders.push({
-        managerName: p.manager_name,
-        teamName: p.team_name,
+        managerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
         totalHitsCost: totalHits,
       });
     }
@@ -224,7 +223,7 @@ export const evalFormKing: CardEvaluator = (
   _profiles,
   selectedGw
 ) => {
-  if (!standings.length) return null;
+  if (!standings || !standings.length) return null;
 
   let maxForm = -1;
   interface FormHolder {
@@ -235,20 +234,21 @@ export const evalFormKing: CardEvaluator = (
   let holders: FormHolder[] = [];
 
   for (const s of standings) {
-    if (s.rolling_3gw_average > maxForm) {
-      maxForm = s.rolling_3gw_average;
+    const form = s.rolling_3_avg ?? 0;
+    if (form > maxForm) {
+      maxForm = form;
       holders = [
         {
-          managerName: s.manager_name,
-          teamName: s.team_name,
-          form: s.rolling_3gw_average,
+          managerName: s.player_name || "Manager",
+          teamName: s.entry_name || "Squad",
+          form: form,
         },
       ];
-    } else if (s.rolling_3gw_average === maxForm && maxForm > 0) {
+    } else if (form === maxForm && maxForm > 0) {
       holders.push({
-        managerName: s.manager_name,
-        teamName: s.team_name,
-        form: s.rolling_3gw_average,
+        managerName: s.player_name || "Manager",
+        teamName: s.entry_name || "Squad",
+        form: form,
       });
     }
   }
@@ -286,7 +286,8 @@ export const evalChipAlert: CardEvaluator = (
   _profiles,
   selectedGw
 ) => {
-  const chipUsers = standings.filter((s) => s.active_chip);
+  if (!standings) return null;
+  const chipUsers = standings.filter((s) => s.chip_used);
   if (!chipUsers.length) return null;
 
   const chipNames: Record<string, string> = {
@@ -297,7 +298,7 @@ export const evalChipAlert: CardEvaluator = (
   };
 
   const descriptions = chipUsers.map(
-    (u) => `${u.manager_name} (${chipNames[u.active_chip!] || u.active_chip})`
+    (u) => `${u.player_name || "Manager"} (${chipNames[u.chip_used!] || u.chip_used})`
   );
 
   return {
@@ -310,9 +311,9 @@ export const evalChipAlert: CardEvaluator = (
     statValue: chipUsers.length,
     statLabel: "Active Chips",
     managers: chipUsers.map((u) => ({
-      managerName: u.manager_name,
-      teamName: u.team_name,
-      detail: chipNames[u.active_chip!] || u.active_chip!,
+      managerName: u.player_name || "Manager",
+      teamName: u.entry_name || "Squad",
+      detail: chipNames[u.chip_used!] || u.chip_used!,
     })),
     iconType: "sparkles",
   };
@@ -320,7 +321,6 @@ export const evalChipAlert: CardEvaluator = (
 
 /**
  * Master Registry of Evaluators.
- * Add, remove, or reorder cards here without touching UI rendering.
  */
 export const CARD_EVALUATORS: CardEvaluator[] = [
   evalSeasonRecordHaul,

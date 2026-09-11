@@ -3,10 +3,8 @@
 import React, { useState } from "react";
 import {
   ArrowRight,
-  Sparkles,
   ChevronDown,
   ChevronUp,
-  Filter,
   Layers,
   ArrowRightLeft,
 } from "lucide-react";
@@ -28,17 +26,15 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
 
   // Group transfers by manager
   const groupedByManager: Record<number, ManagerTransferGroup> = {};
-  for (const t of transfers) {
+  for (const t of transfers || []) {
     if (!groupedByManager[t.manager_id]) {
       groupedByManager[t.manager_id] = {
         managerId: t.manager_id,
-        managerName: t.manager_name,
-        teamName: t.team_name,
+        managerName: t.manager_name || "Manager",
+        entryName: t.entry_name || "Squad",
         gameweek: t.gameweek,
-        chipUsed: null,
         transfersCount: 0,
-        totalCost: 0,
-        timestamp: t.timestamp,
+        timestamp: t.transfer_time || new Date().toISOString(),
         transfers: [],
       };
     }
@@ -73,7 +69,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>Rival Transfer Feed</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-medium">
-                {transfers.length} Move{transfers.length === 1 ? "" : "s"}
+                {transfers?.length || 0} Move{transfers?.length === 1 ? "" : "s"}
               </span>
             </h3>
             <p className="text-xs text-slate-400">
@@ -147,7 +143,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                       {group.managerName}
                     </span>
                     <span className="text-[10px] text-slate-400 block font-medium">
-                      {group.teamName}
+                      {group.entryName}
                     </span>
                   </div>
 
@@ -186,7 +182,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                               {t.element_in_name}
                             </span>
                             <span className="text-[10px] text-slate-400">
-                              {t.element_in_team} • £{(t.element_in_cost / 10).toFixed(1)}m
+                              {t.element_in_team} • £{t.element_in_cost?.toFixed(1)}m
                             </span>
                           </div>
                         </div>
@@ -200,7 +196,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                               {t.element_out_name}
                             </span>
                             <span className="text-[10px] text-slate-500">
-                              {t.element_out_team} • £{(t.element_out_cost / 10).toFixed(1)}m
+                              {t.element_out_team} • £{t.element_out_cost?.toFixed(1)}m
                             </span>
                           </div>
                           <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 shrink-0">

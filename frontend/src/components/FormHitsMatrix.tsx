@@ -10,24 +10,24 @@ interface FormHitsMatrixProps {
 }
 
 export const FormHitsMatrix: React.FC<FormHitsMatrixProps> = ({ standings, selectedGw }) => {
-  if (!standings.length) return null;
+  if (!standings || !standings.length) return null;
 
   // Calculate median thresholds for 2x2 split
-  const forms = standings.map((s) => s.rolling_3gw_average);
-  const avgForm = forms.reduce((a, b) => a + b, 0) / forms.length || 60;
+  const forms = standings.map((s) => s.rolling_3_avg ?? 0);
+  const avgForm = forms.reduce((a, b) => a + b, 0) / (forms.length || 1) || 60;
   const hitsThreshold = 4; // 1 transfer hit (-4 pts) threshold
 
   const pureStrategists = standings.filter(
-    (s) => s.rolling_3gw_average >= avgForm && s.total_hits_cost < hitsThreshold
+    (s) => (s.rolling_3_avg ?? 0) >= avgForm && (s.event_transfers_cost ?? 0) < hitsThreshold
   );
   const highRollers = standings.filter(
-    (s) => s.rolling_3gw_average >= avgForm && s.total_hits_cost >= hitsThreshold
+    (s) => (s.rolling_3_avg ?? 0) >= avgForm && (s.event_transfers_cost ?? 0) >= hitsThreshold
   );
   const silentDrifters = standings.filter(
-    (s) => s.rolling_3gw_average < avgForm && s.total_hits_cost < hitsThreshold
+    (s) => (s.rolling_3_avg ?? 0) < avgForm && (s.event_transfers_cost ?? 0) < hitsThreshold
   );
   const inTheMud = standings.filter(
-    (s) => s.rolling_3gw_average < avgForm && s.total_hits_cost >= hitsThreshold
+    (s) => (s.rolling_3_avg ?? 0) < avgForm && (s.event_transfers_cost ?? 0) >= hitsThreshold
   );
 
   return (
@@ -74,9 +74,9 @@ export const FormHitsMatrix: React.FC<FormHitsMatrixProps> = ({ standings, selec
                   key={m.manager_id}
                   className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/80 border border-slate-800"
                 >
-                  <span className="font-bold text-white">{m.manager_name}</span>
+                  <span className="font-bold text-white">{m.player_name || "Manager"}</span>
                   <span className="text-emerald-400 font-extrabold tabular-nums">
-                    {m.rolling_3gw_average.toFixed(1)} form (0 hits)
+                    {(m.rolling_3_avg ?? 0).toFixed(1)} form (0 hits)
                   </span>
                 </div>
               ))
@@ -110,9 +110,9 @@ export const FormHitsMatrix: React.FC<FormHitsMatrixProps> = ({ standings, selec
                   key={m.manager_id}
                   className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/80 border border-slate-800"
                 >
-                  <span className="font-bold text-white">{m.manager_name}</span>
+                  <span className="font-bold text-white">{m.player_name || "Manager"}</span>
                   <span className="text-purple-400 font-extrabold tabular-nums">
-                    {m.rolling_3gw_average.toFixed(1)} form (-{m.total_hits_cost} hits)
+                    {(m.rolling_3_avg ?? 0).toFixed(1)} form (-{m.event_transfers_cost} hits)
                   </span>
                 </div>
               ))
@@ -146,9 +146,9 @@ export const FormHitsMatrix: React.FC<FormHitsMatrixProps> = ({ standings, selec
                   key={m.manager_id}
                   className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/80 border border-slate-800"
                 >
-                  <span className="font-bold text-slate-300">{m.manager_name}</span>
+                  <span className="font-bold text-slate-300">{m.player_name || "Manager"}</span>
                   <span className="text-slate-400 font-semibold tabular-nums">
-                    {m.rolling_3gw_average.toFixed(1)} form
+                    {(m.rolling_3_avg ?? 0).toFixed(1)} form
                   </span>
                 </div>
               ))
@@ -182,9 +182,9 @@ export const FormHitsMatrix: React.FC<FormHitsMatrixProps> = ({ standings, selec
                   key={m.manager_id}
                   className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/80 border border-slate-800"
                 >
-                  <span className="font-bold text-white">{m.manager_name}</span>
+                  <span className="font-bold text-white">{m.player_name || "Manager"}</span>
                   <span className="text-rose-400 font-extrabold tabular-nums">
-                    {m.rolling_3gw_average.toFixed(1)} form (-{m.total_hits_cost} hits)
+                    {(m.rolling_3_avg ?? 0).toFixed(1)} form (-{m.event_transfers_cost} hits)
                   </span>
                 </div>
               ))

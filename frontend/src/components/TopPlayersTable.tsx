@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { PlayerPerformanceItem } from "../lib/types";
-import { ArrowUpDown, Search, Filter } from "lucide-react";
+import { ArrowUpDown, Search } from "lucide-react";
 
 interface TopPlayersTableProps {
   players: PlayerPerformanceItem[];
@@ -37,17 +37,18 @@ export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({
     }
   };
 
-  const filteredPlayers = players
+  const filteredPlayers = (players || [])
     .filter((p) => {
-      const matchesSearch =
-        p.web_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.team_short_name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesPos = posFilter === "ALL" || p.position_name === posFilter;
+      const wName = (p.web_name || "").toLowerCase();
+      const tName = (p.team_short_name || "").toLowerCase();
+      const query = searchTerm.toLowerCase();
+      const matchesSearch = wName.includes(query) || tName.includes(query);
+      const matchesPos = posFilter === "ALL" || p.position === posFilter;
       return matchesSearch && matchesPos;
     })
     .sort((a, b) => {
-      const valA = a[sortField] || 0;
-      const valB = b[sortField] || 0;
+      const valA = a[sortField] ?? 0;
+      const valB = b[sortField] ?? 0;
       return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
     });
 
@@ -208,26 +209,30 @@ export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({
                 <td className="py-3 px-4">
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-bold border ${getPosBadgeColor(
-                      p.position_name
+                      p.position
                     )}`}
                   >
-                    {p.position_name}
+                    {p.position}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-slate-400">£{(p.now_cost / 10).toFixed(1)}m</td>
+                <td className="py-3 px-4 text-slate-400">£{p.now_cost?.toFixed(1)}m</td>
                 <td className="py-3 px-4 text-slate-400">{p.minutes}'</td>
                 <td className="py-3 px-4 font-black text-emerald-400 text-sm">{p.total_points} pts</td>
                 <td className="py-3 px-4 font-bold text-slate-200">{p.goals_scored}</td>
                 <td className="py-3 px-4 font-bold text-slate-200">{p.assists}</td>
                 <td className="py-3 px-4 text-slate-400 hidden sm:table-cell">
-                  {p.expected_goals?.toFixed(2) || "0.00"}
+                  {p.expected_goals !== null && p.expected_goals !== undefined
+                    ? p.expected_goals.toFixed(2)
+                    : "0.00"}
                 </td>
                 <td className="py-3 px-4 text-slate-400 hidden sm:table-cell">
-                  {p.expected_assists?.toFixed(2) || "0.00"}
+                  {p.expected_assists !== null && p.expected_assists !== undefined
+                    ? p.expected_assists.toFixed(2)
+                    : "0.00"}
                 </td>
                 <td className="py-3 px-4 text-amber-400 font-bold hidden md:table-cell">{p.bonus}</td>
                 <td className="py-3 px-4 text-purple-400 font-bold hidden lg:table-cell">
-                  {p.ict_index?.toFixed(1) || "0.0"}
+                  {p.ict_index !== null && p.ict_index !== undefined ? p.ict_index.toFixed(1) : "0.0"}
                 </td>
               </tr>
             ))}

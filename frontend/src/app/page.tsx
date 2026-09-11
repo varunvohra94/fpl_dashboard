@@ -3,13 +3,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Trophy,
-  Activity,
   Users,
   BarChart3,
-  Layers,
-  Sparkles,
   AlertCircle,
-  RefreshCw,
 } from "lucide-react";
 import {
   LeagueStandingsResponse,
@@ -61,7 +57,7 @@ export default function DashboardPage() {
       setPipelineStatus(status);
 
       const latestGw =
-        status.latest_finalized_gameweek ||
+        status.latest_completed_gameweek ||
         status.current_gameweek ||
         1;
 
@@ -96,7 +92,7 @@ export default function DashboardPage() {
       if (playersRes) setTopPlayersData(playersRes);
 
       // 2. Fetch all manager profiles for season records, race & matrix
-      if (standingsRes.standings.length > 0) {
+      if (standingsRes?.standings?.length > 0) {
         const profilePromises = standingsRes.standings.map((s) =>
           fetchManagerHistory(s.manager_id).catch(() => null)
         );
@@ -131,7 +127,7 @@ export default function DashboardPage() {
 
   const handleSelectManagerByName = (managerName: string) => {
     const found = standingsData?.standings.find(
-      (s) => s.manager_name.toLowerCase() === managerName.toLowerCase()
+      (s) => (s.player_name || "").toLowerCase() === managerName.toLowerCase()
     );
     if (found) {
       setSelectedManagerId(found.manager_id);
@@ -142,7 +138,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950">
       {/* Header */}
       <Header
-        leagueName={standingsData?.league_name || "Mini-League Platform"}
+        leagueName={`League #${standingsData?.league_id || 944559}`}
         selectedGw={selectedGw}
         maxAvailableGw={maxAvailableGw}
         onSelectGw={(gw) => setSelectedGw(gw)}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Play, Pause, FastForward, RotateCcw, Trophy, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Play, Pause, RotateCcw, TrendingUp, TrendingDown } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface BarChartRaceProps {
@@ -28,17 +28,18 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({ profiles, maxGw }) =
   const getStandingsForGw = (targetGw: number): ManagerGwCumulative[] => {
     const list: { managerId: number; managerName: string; teamName: string; cumulativeNetPoints: number }[] = [];
 
-    for (const p of profiles) {
+    for (const p of profiles || []) {
       let cumulativeNet = 0;
-      for (const h of p.gameweek_history) {
+      const history = p.history || [];
+      for (const h of history) {
         if (h.gameweek <= targetGw) {
-          cumulativeNet += h.net_points;
+          cumulativeNet += h.net_points ?? 0;
         }
       }
       list.push({
-        managerId: p.manager_id,
-        managerName: p.manager_name,
-        teamName: p.team_name,
+        managerId: p.id,
+        managerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
         cumulativeNetPoints: cumulativeNet,
       });
     }

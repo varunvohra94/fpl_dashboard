@@ -23,11 +23,11 @@ export const Header: React.FC<HeaderProps> = ({
   onRefresh,
   isLoading,
 }) => {
-  const currentGwState = pipelineStatus?.gameweeks.find(
+  const currentGwState = pipelineStatus?.gameweeks?.find(
     (g) => g.gameweek === selectedGw
   );
 
-  const isChecked = currentGwState?.is_data_checked;
+  const isChecked = currentGwState?.data_checked ?? true;
 
   return (
     <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
