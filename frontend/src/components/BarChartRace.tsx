@@ -12,6 +12,7 @@ import {
   Sparkles,
   BarChart2,
   GitCommit,
+  Crosshair,
 } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 import { RankTrajectoryChart } from "./RankTrajectoryChart";
@@ -28,6 +29,7 @@ interface ManagerState {
   cumulativeNetPoints: number;
   currentRank: number;
   prevRank: number;
+  color: string;
 }
 
 type VizMode = "trail" | "bars";
@@ -35,6 +37,21 @@ type VizMode = "trail" | "bars";
 const ROW_HEIGHT = 60;
 const ROW_GAP = 12;
 const STEP = ROW_HEIGHT + ROW_GAP;
+
+const TRAIL_COLORS = [
+  "#00FF87", // Premier League Emerald
+  "#00E5FF", // Neon Cyan
+  "#A855F7", // Electric Purple
+  "#FF3366", // Neon Rose
+  "#FFB800", // Amber Gold
+  "#3B82F6", // Vivid Blue
+  "#10B981", // Teal
+  "#EC4899", // Magenta Pink
+  "#F97316", // Coral Orange
+  "#6366F1", // Indigo
+  "#14B8A6", // Mint
+  "#E11D48", // Crimson
+];
 
 const SPEED_CONFIG: Record<
   number,
@@ -53,6 +70,12 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1); // 0.5x, 1x, 2x
   const [vizMode, setVizMode] = useState<VizMode>("trail"); // Default: Trail Graph
+  const [spotlightManagerId, setSpotlightManagerId] = useState<number | null>(
+    null
+  );
+  const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(
+    null
+  );
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Compute cumulative standings for all managers at a specific gameweek
@@ -62,9 +85,10 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
       managerName: string;
       teamName: string;
       cumulativeNetPoints: number;
+      color: string;
     }[] = [];
 
-    for (const p of profiles || []) {
+    (profiles || []).forEach((p, idx) => {
       let cumulativeNet = 0;
       const history = p.history || [];
       for (const h of history) {
@@ -77,8 +101,9 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         managerName: p.player_name || "Manager",
         teamName: p.entry_name || "Squad",
         cumulativeNetPoints: cumulativeNet,
+        color: TRAIL_COLORS[idx % TRAIL_COLORS.length],
       });
-    }
+    });
 
     // Sort by cumulative points descending (and ID as deterministic tiebreaker)
     list.sort(
@@ -137,6 +162,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   const containerHeight =
     (profiles?.length || currentStandings.length) * STEP;
 
+  const activeFocusId = spotlightManagerId || hoveredManagerId;
+
   return (
     <div className="space-y-6">
       {/* Analytics Master Unified Card */}
@@ -161,7 +188,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             <p className="text-xs text-slate-400 mt-0.5">
               {vizMode === "trail"
                 ? "Continuous smooth trajectory lines showing overtakes and rank switches across gameweeks"
-                : "Watch cards physically glide and overtake over each other with smooth spring physics"}
+                : "Follow your name as cards glide smoothly across positions in real-time"}
             </p>
           </div>
 
@@ -247,6 +274,76 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           </div>
         </div>
 
+        {/* Manager Spotlight Legend (Available for Bar Race to follow your name easily) */}
+        {vizMode === "bars" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-2">
+            <div className="flex flex-wrap gap-2">
+              {profiles.map((p, idx) => {
+                const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+                const isFocused = activeFocusId === p.id;
+                const isDimmed = activeFocusId !== null && !isFocused;
+                const standing = currentStandings.find(
+                  (s) => s.managerId === p.id
+                );
+                const currentRank = standing?.currentRank || idx + 1;
+
+                return (
+                  <button
+                    key={p.id}
+                    onMouseEnter={() => setHoveredManagerId(p.id)}
+                    onMouseLeave={() => setHoveredManagerId(null)}
+                    onClick={() =>
+                      setSpotlightManagerId(
+                        spotlightManagerId === p.id ? null : p.id
+                      )
+                    }
+                    style={{
+                      borderColor: isFocused ? color : undefined,
+                      boxShadow: isFocused ? `0 0 14px ${color}50` : undefined,
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      isFocused
+                        ? "bg-slate-800 text-white"
+                        : isDimmed
+                        ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
+                        : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                    }`}
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="truncate max-w-[110px]">
+                      {p.player_name}
+                    </span>
+                    <span
+                      className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: `${color}20`,
+                        color: color,
+                      }}
+                    >
+                      #{currentRank}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeFocusId && (
+              <button
+                onClick={() => {
+                  setSpotlightManagerId(null);
+                  setHoveredManagerId(null);
+                }}
+                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer shadow-sm shrink-0"
+              >
+                Clear Spotlight
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Main Content Area: Trail Graph or Bar Race */}
         {vizMode === "trail" ? (
           <RankTrajectoryChart
@@ -268,47 +365,51 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               );
               const rankDelta = m.prevRank - m.currentRank;
               const isLeader = m.currentRank === 1;
-              const isClimbing = rankDelta > 0;
-              const isFalling = rankDelta < 0;
+              const isFocused = activeFocusId === m.managerId;
+              const isDimmed = activeFocusId !== null && !isFocused;
 
-              // Card Elevation & Layer Physics:
-              // Overtaking climbing cards lift up on the Z-axis with scale and shadow to physically move OVER falling cards!
-              const zIndex = isLeader
-                ? 60
-                : isClimbing
-                ? 50
-                : isFalling
-                ? 10
-                : 25;
-
-              const scale = isLeader
-                ? 1.015
-                : isClimbing
-                ? 1.025
-                : isFalling
-                ? 0.985
-                : 1;
-
-              const opacity = isFalling ? 0.85 : 1;
+              // Pure vertical glide without scale jitter for silky smooth card following
+              const zIndex = isFocused
+                ? 80
+                : isLeader
+                ? 40
+                : rankDelta > 0
+                ? 30
+                : 15;
 
               return (
                 <div
                   key={m.managerId}
+                  onClick={() =>
+                    setSpotlightManagerId(
+                      spotlightManagerId === m.managerId ? null : m.managerId
+                    )
+                  }
+                  onMouseEnter={() => setHoveredManagerId(m.managerId)}
+                  onMouseLeave={() => setHoveredManagerId(null)}
                   style={{
                     top: 0,
-                    transform: `translateY(${topPosition}px) scale(${scale})`,
+                    transform: `translateY(${topPosition}px)`,
                     height: `${ROW_HEIGHT}px`,
                     zIndex,
-                    opacity,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.34, 1.15, 0.64, 1), opacity ${transitionDuration} ease, box-shadow ${transitionDuration} ease, border-color ${transitionDuration} ease`,
+                    opacity: isDimmed ? 0.35 : 1,
+                    borderColor: isFocused
+                      ? m.color
+                      : isLeader
+                      ? "rgba(0, 255, 135, 0.6)"
+                      : undefined,
+                    boxShadow: isFocused
+                      ? `0 0 25px ${m.color}60, 0 15px 35px rgba(0, 0, 0, 0.8)`
+                      : isLeader
+                      ? "0 10px 25px -5px rgba(0, 255, 135, 0.2)"
+                      : undefined,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
                   }}
-                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md will-change-transform ${
+                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md cursor-pointer will-change-transform ${
                     isLeader
-                      ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90 border-emerald-500/60 shadow-2xl shadow-emerald-500/20"
-                      : isClimbing
-                      ? "bg-slate-900/95 border-emerald-500/50 shadow-2xl shadow-emerald-500/15"
-                      : isFalling
-                      ? "bg-slate-950/70 border-slate-800/60 shadow-md"
+                      ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90"
+                      : isFocused
+                      ? "bg-slate-900/95"
                       : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700 shadow-md"
                   }`}
                 >
@@ -331,14 +432,20 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     </span>
                   </div>
 
-                  {/* Manager & Team Name Label */}
-                  <div className="w-28 sm:w-40 shrink-0 truncate">
-                    <span className="text-xs font-bold text-white block truncate">
-                      {m.managerName}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block truncate font-medium">
-                      {m.teamName}
-                    </span>
+                  {/* Manager & Team Name Label with Signature Color Indicator */}
+                  <div className="w-28 sm:w-44 shrink-0 truncate flex items-center gap-2">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                      style={{ backgroundColor: m.color }}
+                    />
+                    <div className="truncate">
+                      <span className="text-xs font-bold text-white block truncate">
+                        {m.managerName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate font-medium">
+                        {m.teamName}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Animated Progress Bar */}
@@ -346,17 +453,24 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     <div
                       style={{
                         width: `${percentage}%`,
-                        transition: `width ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                        backgroundColor: isFocused ? m.color : undefined,
+                        transition: `width ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), background-color 300ms ease`,
                       }}
-                      className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all duration-300 ${
-                        isLeader
+                      className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all ${
+                        isFocused
+                          ? "text-slate-950 shadow-md"
+                          : isLeader
                           ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/30"
                           : m.currentRank <= 3
                           ? "bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 shadow-sm"
                           : "bg-gradient-to-r from-slate-700 via-slate-600 to-slate-500"
                       }`}
                     >
-                      <span className="text-xs font-black text-slate-950 tabular-nums drop-shadow-sm whitespace-nowrap">
+                      <span
+                        className={`text-xs font-black tabular-nums drop-shadow-sm whitespace-nowrap ${
+                          isFocused ? "text-slate-950" : "text-white"
+                        }`}
+                      >
                         {m.cumulativeNetPoints} pts
                       </span>
                     </div>
