@@ -43,7 +43,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
   currentGw,
   maxGw,
-  transitionDuration = "1500ms",
+  transitionDuration = "1600ms",
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
@@ -220,8 +220,15 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
         >
           {/* Defs / Glow filter */}
           <defs>
-            <filter id="trail-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3.5" result="blur" />
+            <filter id="trail-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="head-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -289,7 +296,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             );
           })}
 
-          {/* Continuous Gliding Active Gameweek Vertical Line */}
+          {/* Continuous Gliding Active Gameweek Vertical Scrubber Line */}
           <line
             x1={getX(currentGw)}
             y1={padding.top - 8}
@@ -304,15 +311,20 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             }}
           />
 
-          {/* Manager Continuous Trajectory Trails */}
+          {/* Manager Trajectory Curves */}
           {profiles.map((p, idx) => {
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
             const isFocused = activeFocusId === p.id;
             const isDimmed = activeFocusId !== null && !isFocused;
             const fullPath = generateFullPath(p.id);
+            const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
+            const currentData = trajectoryMap[p.id]?.[currentGw];
+
+            const currentHeadX = getX(currentGw);
+            const currentHeadY = getY(currentRank);
 
             return (
-              <g key={`path-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
+              <g key={`path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
                 {/* Faint Background Full Season Ghost Arc */}
                 <path
                   d={fullPath}
@@ -320,10 +332,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   stroke={color}
                   strokeWidth="1.5"
                   strokeDasharray="3 3"
-                  opacity="0.2"
+                  opacity="0.18"
                 />
 
-                {/* Glowing Focus Aura */}
+                {/* Glowing Focus Aura along active path */}
                 {isFocused && (
                   <path
                     d={fullPath}
@@ -341,7 +353,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   />
                 )}
 
-                {/* Continuous Drawing Active Line */}
+                {/* Continuous Drawing Active Trail Line */}
                 <path
                   d={fullPath}
                   pathLength={1000}
@@ -357,24 +369,21 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   }}
                 />
 
-                {/* Milestone Nodes at every Gameweek along the trail */}
+                {/* Subtle Milestone Breadcrumb Dots Left Behind */}
                 {gameweeks.map((gw) => {
                   const data = trajectoryMap[p.id]?.[gw];
                   if (!data) return null;
 
                   const cx = getX(gw);
                   const cy = getY(data.rank);
-                  const isReached = gw <= currentGw;
-                  const isLatest = gw === currentGw;
-                  const prevRank =
-                    gw > 1 ? trajectoryMap[p.id]?.[gw - 1]?.rank : undefined;
+                  const isPast = gw < currentGw;
 
                   return (
                     <g
-                      key={`node-${p.id}-gw-${gw}`}
+                      key={`breadcrumb-${p.id}-gw-${gw}`}
                       className="cursor-pointer"
                       style={{
-                        opacity: isReached ? 1 : 0.2,
+                        opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
                         transition: `opacity ${transitionDuration} ease`,
                       }}
                       onMouseEnter={() => {
@@ -384,7 +393,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                           teamName: p.entry_name || "Squad",
                           gameweek: gw,
                           rank: data.rank,
-                          prevRank,
+                          prevRank:
+                            gw > 1
+                              ? trajectoryMap[p.id]?.[gw - 1]?.rank
+                              : undefined,
                           gwPoints: data.points,
                           cumNet: data.cumNet,
                           x: cx,
@@ -396,80 +408,95 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         setHoveredManagerId(null);
                         setTooltip(null);
                       }}
-                      onClick={() =>
-                        setSelectedManagerId(
-                          selectedManagerId === p.id ? null : p.id
-                        )
-                      }
                     >
-                      {/* Halo ring for active/latest node */}
-                      {isLatest && (
-                        <circle
-                          cx={cx}
-                          cy={cy}
-                          r="8.5"
-                          fill="none"
-                          stroke={color}
-                          strokeWidth="1.5"
-                          opacity="0.6"
-                        />
-                      )}
-
-                      {/* Node Body */}
                       <circle
                         cx={cx}
                         cy={cy}
-                        r={isFocused || isLatest ? "5.5" : "4"}
-                        fill={isFocused || isLatest ? color : "#0B0F19"}
+                        r="3.5"
+                        fill="#070A12"
                         stroke={color}
-                        strokeWidth="2.5"
-                        className="transition-transform duration-200 hover:scale-125"
+                        strokeWidth="1.5"
                       />
-
-                      {/* Rank Number above circle if focused */}
-                      {isFocused && isReached && (
-                        <text
-                          x={cx}
-                          y={cy - 9}
-                          textAnchor="middle"
-                          fill={color}
-                          fontSize="9"
-                          fontWeight="900"
-                        >
-                          #{data.rank}
-                        </text>
-                      )}
                     </g>
                   );
                 })}
 
-                {/* Continuous Gliding Manager Label Pill */}
-                {(() => {
-                  const data = trajectoryMap[p.id]?.[currentGw];
-                  if (!data) return null;
-                  const lx = getX(currentGw) + 12;
-                  const ly = getY(data.rank);
+                {/* THE BIG SLIDING DOT & ATTACHED LABEL (Glides smoothly with the trail) */}
+                <g
+                  key={`sliding-head-${p.id}`}
+                  style={{
+                    transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                    zIndex: isFocused ? 50 : 20,
+                  }}
+                  className="cursor-pointer select-none"
+                  onMouseEnter={() => {
+                    setHoveredManagerId(p.id);
+                    if (currentData) {
+                      setTooltip({
+                        managerName: p.player_name || "Manager",
+                        teamName: p.entry_name || "Squad",
+                        gameweek: currentGw,
+                        rank: currentData.rank,
+                        prevRank:
+                          currentGw > 1
+                            ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
+                            : undefined,
+                        gwPoints: currentData.points,
+                        cumNet: currentData.cumNet,
+                        x: currentHeadX,
+                        y: currentHeadY,
+                        color,
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredManagerId(null);
+                    setTooltip(null);
+                  }}
+                  onClick={() =>
+                    setSelectedManagerId(
+                      selectedManagerId === p.id ? null : p.id
+                    )
+                  }
+                >
+                  {/* Outer Glowing Ring for the Big Dot */}
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={isFocused ? 14 : 11}
+                    fill={color}
+                    opacity="0.25"
+                    filter="url(#head-glow)"
+                  />
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={isFocused ? 10.5 : 8.5}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={isFocused ? "2.5" : "2"}
+                    opacity="0.8"
+                  />
 
-                  return (
-                    <g
-                      key={`label-${p.id}`}
-                      className="cursor-pointer select-none"
-                      style={{
-                        transform: `translate(${lx}px, ${ly}px)`,
-                        transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
-                      }}
-                      onClick={() =>
-                        setSelectedManagerId(
-                          selectedManagerId === p.id ? null : p.id
-                        )
-                      }
-                      onMouseEnter={() => setHoveredManagerId(p.id)}
-                      onMouseLeave={() => setHoveredManagerId(null)}
-                    >
+                  {/* Main Big Dot Core */}
+                  <circle
+                    cx={0}
+                    cy={0}
+                    r={isFocused ? 6.5 : 5.5}
+                    fill={color}
+                    stroke="#070A12"
+                    strokeWidth="2"
+                    className="transition-all duration-300"
+                  />
+
+                  {/* Floating Attached Manager Label Pill */}
+                  {currentData && (
+                    <g transform="translate(14, 0)">
                       <rect
-                        x={-4}
+                        x={-2}
                         y={-10}
-                        width="132"
+                        width="130"
                         height="20"
                         rx="6"
                         fill="#070A12"
@@ -477,24 +504,24 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         strokeWidth={isFocused ? "1.5" : "1"}
                       />
                       <circle
-                        cx={4}
+                        cx={6}
                         cy={0}
-                        r="3.5"
+                        r="3"
                         fill={color}
                       />
                       <text
-                        x={13}
+                        x={15}
                         y={3.5}
                         fill={isFocused ? "#FFFFFF" : color}
                         fontSize="10"
                         fontWeight="800"
                         className="truncate"
                       >
-                        {p.player_name.split(" ")[0]} (#{data.rank})
+                        {p.player_name.split(" ")[0]} (#{currentData.rank})
                       </text>
                     </g>
-                  );
-                })()}
+                  )}
+                </g>
               </g>
             );
           })}
