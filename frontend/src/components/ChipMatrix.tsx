@@ -24,7 +24,7 @@ export const ChipMatrix: React.FC<ChipMatrixProps> = ({ profiles }) => {
             Strategic Tracker
           </span>
           <h3 className="text-lg sm:text-xl font-extrabold text-white mt-1">
-            Mini-League Chip Usage Matrix
+            Chip Usage Metrics
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             Monitor which rivals still hold power chips for double & blank gameweeks

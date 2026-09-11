@@ -213,40 +213,42 @@ export default function DashboardPage() {
 
         {/* Tab 1: Standings & News Feed */}
         {activeTab === "standings" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-7 xl:col-span-8">
-              <StandingsTable
-                standings={standingsData?.standings || []}
-                selectedGw={selectedGw}
-                maxAvailableGw={maxAvailableGw}
-                onSelectGw={(gw) => setSelectedGw(gw)}
-                onSelectManager={(id) => setSelectedManagerId(id)}
-              />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-7 xl:col-span-8">
+                <StandingsTable
+                  standings={standingsData?.standings || []}
+                  selectedGw={selectedGw}
+                  maxAvailableGw={maxAvailableGw}
+                  onSelectGw={(gw) => setSelectedGw(gw)}
+                  onSelectManager={(id) => setSelectedManagerId(id)}
+                />
+              </div>
+              <div className="lg:col-span-5 xl:col-span-4">
+                <TransferFeed
+                  transfers={transfersData?.transfers || []}
+                  selectedGw={selectedGw}
+                  onSelectManager={(id) => setSelectedManagerId(id)}
+                />
+              </div>
             </div>
-            <div className="lg:col-span-5 xl:col-span-4">
-              <TransferFeed
-                transfers={transfersData?.transfers || []}
-                selectedGw={selectedGw}
-                onSelectManager={(id) => setSelectedManagerId(id)}
-              />
-            </div>
+
+            {/* Chip Usage Metrics */}
+            <ChipMatrix profiles={profilesData} />
           </div>
         )}
 
-        {/* Tab 2: Race & Analytics */}
+        {/* Tab 2: Stats */}
         {activeTab === "race" && (
           <div className="space-y-6">
             {/* Animated Bar Chart Race */}
             <BarChartRace profiles={profilesData} maxGw={maxAvailableGw} />
 
-            {/* Matrix Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <FormHitsMatrix
-                standings={standingsData?.standings || []}
-                selectedGw={selectedGw}
-              />
-              <ChipMatrix profiles={profilesData} />
-            </div>
+            {/* Form vs Hits Behavioral Matrix */}
+            <FormHitsMatrix
+              standings={standingsData?.standings || []}
+              selectedGw={selectedGw}
+            />
           </div>
         )}
 
