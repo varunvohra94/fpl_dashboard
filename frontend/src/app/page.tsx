@@ -35,10 +35,14 @@ import { TopPlayersTable } from "../components/TopPlayersTable";
 type ActiveTab = "standings" | "race" | "players";
 
 export default function DashboardPage() {
-  const [selectedGw, setSelectedGw] = useState<number>(1);
   const [maxAvailableGw, setMaxAvailableGw] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<ActiveTab>("standings");
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
+
+  // Independent Section Gameweek States
+  const [standingsGw, setStandingsGw] = useState<number>(0); // 0 = Overall Season cumulative
+  const [transfersGw, setTransfersGw] = useState<number>(0); // 0 = All Gameweeks
+  const [playersGw, setPlayersGw] = useState<number>(1);
 
   // Data states
   const [standingsData, setStandingsData] = useState<LeagueStandingsResponse | null>(null);
@@ -62,11 +66,11 @@ export default function DashboardPage() {
         1;
 
       setMaxAvailableGw(latestGw);
-      setSelectedGw(latestGw);
+      setPlayersGw(latestGw);
     } catch (err: any) {
       console.warn("Could not fetch pipeline status, defaulting to GW 1:", err);
-      setSelectedGw(1);
       setMaxAvailableGw(1);
+      setPlayersGw(1);
     }
   }, []);
 
@@ -74,17 +78,17 @@ export default function DashboardPage() {
     loadInitialStatus();
   }, [loadInitialStatus]);
 
-  // Fetch gameweek-specific data
-  const loadDashboardData = useCallback(async (gw: number) => {
+  // Fetch full dashboard data
+  const loadDashboardData = useCallback(async (currentMaxGw: number, targetPlayersGw: number) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // 1. Fetch Standings & Transfers & Top Players concurrently
+      // 1. Fetch Standings, Transfers (all season / up to latest), and Top Players concurrently
       const [standingsRes, transfersRes, playersRes] = await Promise.all([
-        fetchLeagueStandings(undefined, gw),
-        fetchLeagueTransfers(undefined, gw, 100),
-        fetchTopPlayers(gw, 30).catch(() => null),
+        fetchLeagueStandings(undefined, currentMaxGw > 0 ? currentMaxGw : undefined),
+        fetchLeagueTransfers(undefined, undefined, 200),
+        fetchTopPlayers(targetPlayersGw > 0 ? targetPlayersGw : currentMaxGw, 40).catch(() => null),
       ]);
 
       setStandingsData(standingsRes);
@@ -113,16 +117,27 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedGw > 0) {
-      loadDashboardData(selectedGw);
+    if (maxAvailableGw > 0) {
+      loadDashboardData(maxAvailableGw, playersGw);
     }
-  }, [selectedGw, loadDashboardData]);
+  }, [maxAvailableGw, playersGw, loadDashboardData]);
 
-  // Compute story highlights
+  // Gameweek change handler for TopPlayersTable
+  const handleSelectPlayersGw = async (gw: number) => {
+    setPlayersGw(gw);
+    try {
+      const playersRes = await fetchTopPlayers(gw, 40);
+      if (playersRes) setTopPlayersData(playersRes);
+    } catch (err) {
+      console.error(`Failed to fetch players for GW ${gw}:`, err);
+    }
+  };
+
+  // Compute story highlights for the latest active season
   const highlightCards = generateHighlightCards(
     standingsData?.standings || [],
     profilesData,
-    selectedGw
+    maxAvailableGw
   );
 
   const handleSelectManagerByName = (managerName: string) => {
@@ -136,14 +151,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950">
-      {/* Header */}
+      {/* Header (Clean Master Bar without redundant GW buttons) */}
       <Header
         leagueName={`League #${standingsData?.league_id || 944559}`}
-        selectedGw={selectedGw}
-        maxAvailableGw={maxAvailableGw}
-        onSelectGw={(gw) => setSelectedGw(gw)}
         pipelineStatus={pipelineStatus}
-        onRefresh={() => loadDashboardData(selectedGw)}
+        onRefresh={() => loadDashboardData(maxAvailableGw, playersGw)}
         isLoading={isLoading}
       />
 
@@ -156,15 +168,15 @@ export default function DashboardPage() {
               <span>{error}</span>
             </div>
             <button
-              onClick={() => loadDashboardData(selectedGw)}
-              className="px-3 py-1 text-xs font-bold rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors"
+              onClick={() => loadDashboardData(maxAvailableGw, playersGw)}
+              className="px-3 py-1 text-xs font-bold rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors cursor-pointer"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Gameweek Intelligence Highlights */}
+        {/* Season & Matchday Intelligence Highlights */}
         <HighlightsBanner
           cards={highlightCards}
           onSelectManager={handleSelectManagerByName}
@@ -175,7 +187,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab("standings")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeTab === "standings"
                   ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/10 text-emerald-400 border border-emerald-500/40 shadow-sm"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
@@ -187,7 +199,7 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("race")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeTab === "race"
                   ? "bg-gradient-to-r from-purple-500/20 to-indigo-500/10 text-purple-300 border border-purple-500/40 shadow-sm"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
@@ -199,7 +211,7 @@ export default function DashboardPage() {
 
             <button
               onClick={() => setActiveTab("players")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeTab === "players"
                   ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/10 text-cyan-300 border border-cyan-500/40 shadow-sm"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
@@ -215,19 +227,24 @@ export default function DashboardPage() {
         {activeTab === "standings" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Standings Table with its own GW Dropdown */}
               <div className="lg:col-span-7 xl:col-span-8">
                 <StandingsTable
                   standings={standingsData?.standings || []}
-                  selectedGw={selectedGw}
+                  selectedGw={standingsGw}
                   maxAvailableGw={maxAvailableGw}
-                  onSelectGw={(gw) => setSelectedGw(gw)}
+                  onSelectGw={(gw) => setStandingsGw(gw)}
                   onSelectManager={(id) => setSelectedManagerId(id)}
                 />
               </div>
+
+              {/* Transfer Feed with its own GW Dropdown */}
               <div className="lg:col-span-5 xl:col-span-4">
                 <TransferFeed
                   transfers={transfersData?.transfers || []}
-                  selectedGw={selectedGw}
+                  selectedGw={transfersGw}
+                  maxAvailableGw={maxAvailableGw}
+                  onSelectGw={(gw) => setTransfersGw(gw)}
                   onSelectManager={(id) => setSelectedManagerId(id)}
                 />
               </div>
@@ -241,13 +258,13 @@ export default function DashboardPage() {
         {/* Tab 2: Stats */}
         {activeTab === "race" && (
           <div className="space-y-6">
-            {/* Animated Bar Chart Race */}
+            {/* Animated Bar Chart Race & Trail Graph with bottom Scrubber */}
             <BarChartRace profiles={profilesData} maxGw={maxAvailableGw} />
 
             {/* Form vs Hits Behavioral Matrix */}
             <FormHitsMatrix
               standings={standingsData?.standings || []}
-              selectedGw={selectedGw}
+              selectedGw={maxAvailableGw}
             />
           </div>
         )}
@@ -256,7 +273,9 @@ export default function DashboardPage() {
         {activeTab === "players" && (
           <TopPlayersTable
             players={topPlayersData?.players || []}
-            selectedGw={selectedGw}
+            selectedGw={playersGw}
+            maxAvailableGw={maxAvailableGw}
+            onSelectGw={handleSelectPlayersGw}
           />
         )}
       </main>

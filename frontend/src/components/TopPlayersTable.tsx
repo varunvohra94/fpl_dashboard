@@ -2,11 +2,13 @@
 
 import React, { useState } from "react";
 import { PlayerPerformanceItem } from "../lib/types";
-import { ArrowUpDown, Search } from "lucide-react";
+import { ArrowUpDown, Search, Calendar } from "lucide-react";
 
 interface TopPlayersTableProps {
   players: PlayerPerformanceItem[];
   selectedGw: number;
+  maxAvailableGw?: number;
+  onSelectGw?: (gw: number) => void;
 }
 
 type SortField =
@@ -22,6 +24,8 @@ type SortField =
 export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({
   players,
   selectedGw,
+  maxAvailableGw = 1,
+  onSelectGw,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [posFilter, setPosFilter] = useState<string>("ALL");
@@ -84,13 +88,35 @@ export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Section Gameweek Dropdown */}
+          {onSelectGw && (
+            <div className="relative">
+              <select
+                value={selectedGw}
+                onChange={(e) => onSelectGw(Number(e.target.value))}
+                aria-label="Select Gameweek for Matchday Stats"
+                className="appearance-none bg-slate-950 text-xs font-bold text-slate-200 pl-3 pr-7 py-1.5 rounded-xl border border-slate-800 hover:border-slate-700 focus:outline-none focus:border-cyan-500/60 cursor-pointer"
+              >
+                {Array.from(
+                  { length: Math.max(maxAvailableGw, 1) },
+                  (_, i) => maxAvailableGw - i
+                ).map((gw) => (
+                  <option key={gw} value={gw}>
+                    GW {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
+                  </option>
+                ))}
+              </select>
+              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          )}
+
           {/* Position Filters */}
           <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             {["ALL", "GKP", "DEF", "MID", "FWD"].map((pos) => (
               <button
                 key={pos}
                 onClick={() => setPosFilter(pos)}
-                className={`px-2.5 py-1 rounded-lg transition-colors ${
+                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
                   posFilter === pos
                     ? "bg-slate-800 text-emerald-400 shadow-sm"
                     : "text-slate-400 hover:text-slate-200"
@@ -109,7 +135,7 @@ export const TopPlayersTable: React.FC<TopPlayersTableProps> = ({
               placeholder="Search player / club..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60"
+              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60"
             />
           </div>
         </div>

@@ -7,26 +7,37 @@ import {
   ChevronUp,
   Layers,
   ArrowRightLeft,
+  Calendar,
 } from "lucide-react";
 import { TransferItem, ManagerTransferGroup } from "../lib/types";
 
 interface TransferFeedProps {
   transfers: TransferItem[];
   selectedGw: number;
+  maxAvailableGw: number;
+  onSelectGw?: (gw: number) => void;
   onSelectManager?: (managerId: number) => void;
 }
 
 export const TransferFeed: React.FC<TransferFeedProps> = ({
   transfers,
   selectedGw,
+  maxAvailableGw,
+  onSelectGw,
   onSelectManager,
 }) => {
   const [filterMode, setFilterMode] = useState<"all" | "regular" | "overhaul">("all");
   const [expandedGroups, setExpandedGroups] = useState<Record<number, boolean>>({});
 
+  // Filter transfers by gameweek if selectedGw > 0
+  const activeTransfers =
+    selectedGw > 0
+      ? (transfers || []).filter((t) => t.gameweek === selectedGw)
+      : transfers || [];
+
   // Group transfers by manager
   const groupedByManager: Record<number, ManagerTransferGroup> = {};
-  for (const t of transfers || []) {
+  for (const t of activeTransfers) {
     if (!groupedByManager[t.manager_id]) {
       groupedByManager[t.manager_id] = {
         managerId: t.manager_id,
@@ -59,7 +70,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
 
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md p-4 sm:p-5 shadow-2xl flex flex-col h-full">
-      {/* Header & Filter Bar */}
+      {/* Header & Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
@@ -69,47 +80,75 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>Rival Transfer Feed</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-medium">
-                {transfers?.length || 0} Move{transfers?.length === 1 ? "" : "s"}
+                {activeTransfers.length} Move{activeTransfers.length === 1 ? "" : "s"}
               </span>
             </h3>
             <p className="text-xs text-slate-400">
-              Gameweek {selectedGw} market activity across rivals
+              {selectedGw > 0
+                ? `Market activity in Gameweek ${selectedGw}`
+                : "All market moves across rivals"}
             </p>
           </div>
         </div>
 
-        {/* Filter Toggles */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
-          <button
-            onClick={() => setFilterMode("all")}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-              filterMode === "all"
-                ? "bg-slate-800 text-white"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            All ({groups.length})
-          </button>
-          <button
-            onClick={() => setFilterMode("regular")}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-              filterMode === "regular"
-                ? "bg-slate-800 text-white"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            1-2 Moves
-          </button>
-          <button
-            onClick={() => setFilterMode("overhaul")}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-              filterMode === "overhaul"
-                ? "bg-slate-800 text-white"
-                : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            Overhauls (3+)
-          </button>
+        {/* Gameweek Dropdown & Filter Controls */}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Section Gameweek Dropdown */}
+          {onSelectGw && (
+            <div className="relative">
+              <select
+                value={selectedGw}
+                onChange={(e) => onSelectGw(Number(e.target.value))}
+                aria-label="Select Gameweek for Transfer Feed"
+                className="appearance-none bg-slate-950 text-xs font-bold text-slate-200 pl-3 pr-7 py-1.5 rounded-xl border border-slate-800 hover:border-slate-700 focus:outline-none focus:border-cyan-500/60 cursor-pointer"
+              >
+                <option value={0}>All Gameweeks</option>
+                {Array.from(
+                  { length: Math.max(maxAvailableGw, 1) },
+                  (_, i) => maxAvailableGw - i
+                ).map((gw) => (
+                  <option key={gw} value={gw}>
+                    GW {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
+                  </option>
+                ))}
+              </select>
+              <Calendar className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+          )}
+
+          {/* Filter Toggles */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => setFilterMode("all")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                filterMode === "all"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              All ({groups.length})
+            </button>
+            <button
+              onClick={() => setFilterMode("regular")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                filterMode === "regular"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              1-2
+            </button>
+            <button
+              onClick={() => setFilterMode("overhaul")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                filterMode === "overhaul"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              3+ (Overhauls)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -117,7 +156,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
       <div className="mt-4 space-y-3 overflow-y-auto max-h-[580px] pr-1">
         {filteredGroups.length === 0 ? (
           <div className="py-12 text-center text-slate-500 text-xs">
-            No transfers recorded for Gameweek {selectedGw} matching this filter.
+            No transfers recorded {selectedGw > 0 ? `for Gameweek ${selectedGw}` : ""} matching this filter.
           </div>
         ) : (
           filteredGroups.map((group) => {
@@ -242,7 +281,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                     {/* Accordion Toggle Button */}
                     <button
                       onClick={() => toggleExpand(group.managerId)}
-                      className="mt-2 w-full py-1.5 px-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                      className="mt-2 w-full py-1.5 px-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {isExpanded ? (
                         <>

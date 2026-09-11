@@ -6,9 +6,6 @@ import { PipelineStatusResponse } from "../lib/types";
 
 interface HeaderProps {
   leagueName: string;
-  selectedGw: number;
-  maxAvailableGw: number;
-  onSelectGw: (gw: number) => void;
   pipelineStatus: PipelineStatusResponse | null;
   onRefresh: () => void;
   isLoading: boolean;
@@ -16,22 +13,24 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   leagueName,
-  selectedGw,
-  maxAvailableGw,
-  onSelectGw,
   pipelineStatus,
   onRefresh,
   isLoading,
 }) => {
+  const activeGw =
+    pipelineStatus?.latest_completed_gameweek ||
+    pipelineStatus?.current_gameweek ||
+    1;
+
   const currentGwState = pipelineStatus?.gameweeks?.find(
-    (g) => g.gameweek === selectedGw
+    (g) => g.gameweek === activeGw
   );
 
   const isChecked = currentGwState?.data_checked ?? true;
 
   return (
     <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         {/* Brand & Mini-League */}
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 p-0.5 shadow-lg shadow-emerald-500/20 flex items-center justify-center">
@@ -54,33 +53,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Gameweek Scrubber & Status */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Gameweek Selector Pills */}
-          <div className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-2">
-              Gameweek:
-            </span>
-            <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] sm:max-w-none">
-              {Array.from({ length: Math.max(maxAvailableGw, 1) }, (_, i) => i + 1).map((gw) => {
-                const isSelected = gw === selectedGw;
-                return (
-                  <button
-                    key={gw}
-                    onClick={() => onSelectGw(gw)}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                      isSelected
-                        ? "bg-gradient-to-r from-emerald-500 to-emerald-400 text-slate-950 shadow-md shadow-emerald-500/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-                    }`}
-                  >
-                    GW {gw}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
+        {/* Status & Refresh Controls */}
+        <div className="flex items-center gap-3">
           {/* Pipeline Sync Status Badge */}
           <div
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${
@@ -102,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={onRefresh}
             disabled={isLoading}
             title="Refresh latest data"
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all disabled:opacity-50"
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin text-emerald-400" : ""}`} />
           </button>
