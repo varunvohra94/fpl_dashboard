@@ -261,9 +261,9 @@ export const evalFormKing: CardEvaluator = (
     : `${holders[0].managerName} leads the league with ${maxForm.toFixed(1)} pts/gw form`;
 
   return {
-    id: "form_king",
-    title: "FORM KING",
-    badgeText: isTied ? "👑 Joint Form" : "👑 In-Form",
+    id: "in_form_manager",
+    title: "IN-FORM MANAGER",
+    badgeText: isTied ? "🔥 Joint In-Form" : "🔥 Hot Form",
     accentColor: "purple",
     headline,
     subtext: `Rolling 3-gameweek average form as of GW${selectedGw}`,
@@ -274,48 +274,7 @@ export const evalFormKing: CardEvaluator = (
       teamName: h.teamName,
       detail: `${h.form.toFixed(1)} avg`,
     })),
-    iconType: "crown",
-  };
-};
-
-/**
- * 5. Active Chip Alert - Chips Activated in Selected Gameweek
- */
-export const evalChipAlert: CardEvaluator = (
-  standings,
-  _profiles,
-  selectedGw
-) => {
-  if (!standings) return null;
-  const chipUsers = standings.filter((s) => s.chip_used);
-  if (!chipUsers.length) return null;
-
-  const chipNames: Record<string, string> = {
-    wildcard: "Wildcard",
-    freehit: "Free Hit",
-    bboost: "Bench Boost",
-    "3xc": "Triple Captain",
-  };
-
-  const descriptions = chipUsers.map(
-    (u) => `${u.player_name || "Manager"} (${chipNames[u.chip_used!] || u.chip_used})`
-  );
-
-  return {
-    id: "chip_alert",
-    title: "CHIP ALERT",
-    badgeText: `🃏 ${chipUsers.length} Chip${chipUsers.length > 1 ? "s" : ""} Active`,
-    accentColor: "cyan",
-    headline: descriptions.join(", "),
-    subtext: `Strategic chips deployed by rivals in GW${selectedGw}`,
-    statValue: chipUsers.length,
-    statLabel: "Active Chips",
-    managers: chipUsers.map((u) => ({
-      managerName: u.player_name || "Manager",
-      teamName: u.entry_name || "Squad",
-      detail: chipNames[u.chip_used!] || u.chip_used!,
-    })),
-    iconType: "sparkles",
+    iconType: "flame",
   };
 };
 
@@ -327,7 +286,6 @@ export const CARD_EVALUATORS: CardEvaluator[] = [
   evalFormKing,
   evalBenchRegrets,
   evalTheGambler,
-  evalChipAlert,
 ];
 
 /**
