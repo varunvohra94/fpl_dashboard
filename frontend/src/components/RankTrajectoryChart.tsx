@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { TrendingUp, Users, Sparkles, Trophy, Info } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -316,9 +316,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             x2={getX(currentGw)}
             y2={padding.top + graphHeight + 8}
             stroke="#00FF87"
-            strokeWidth="2.5"
+            strokeWidth="2"
             strokeDasharray="4 2"
-            opacity="0.75"
+            opacity="0.7"
           />
 
           {/* Manager Trajectory Paths */}
@@ -340,7 +340,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     stroke={color}
                     strokeWidth="1.5"
                     strokeDasharray="3 3"
-                    opacity="0.25"
+                    opacity="0.22"
                   />
                 )}
 
@@ -410,17 +410,16 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                           )
                         }
                       >
-                        {/* Ping Animation on Active/Current Gameweek Node */}
+                        {/* Static Subtle Halo on Active/Current Gameweek Node (No blinking) */}
                         {isLatest && (
                           <circle
                             cx={cx}
                             cy={cy}
-                            r="9"
+                            r="8.5"
                             fill="none"
                             stroke={color}
-                            strokeWidth="2"
+                            strokeWidth="1.5"
                             opacity="0.6"
-                            className="animate-ping"
                           />
                         )}
 
@@ -428,14 +427,14 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         <circle
                           cx={cx}
                           cy={cy}
-                          r={isFocused || isLatest ? "6" : "4.5"}
+                          r={isFocused || isLatest ? "5.5" : "4"}
                           fill={isFocused || isLatest ? color : "#0B0F19"}
                           stroke={color}
                           strokeWidth="2.5"
                           className="transition-transform duration-200 hover:scale-125"
                         />
 
-                        {/* Rank Number inside circle if focused or leader */}
+                        {/* Rank Number above circle if focused */}
                         {isFocused && (
                           <text
                             x={cx}

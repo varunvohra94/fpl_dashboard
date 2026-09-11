@@ -12,7 +12,6 @@ import {
   Sparkles,
   BarChart2,
   GitCommit,
-  LayoutGrid,
 } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 import { RankTrajectoryChart } from "./RankTrajectoryChart";
@@ -31,11 +30,20 @@ interface ManagerState {
   prevRank: number;
 }
 
-type VizMode = "combined" | "bars" | "trail";
+type VizMode = "trail" | "bars";
 
 const ROW_HEIGHT = 58;
 const ROW_GAP = 10;
 const STEP = ROW_HEIGHT + ROW_GAP;
+
+const SPEED_CONFIG: Record<
+  number,
+  { intervalMs: number; transitionDuration: string }
+> = {
+  0.5: { intervalMs: 4000, transitionDuration: "2200ms" },
+  1: { intervalMs: 2800, transitionDuration: "1500ms" },
+  2: { intervalMs: 1600, transitionDuration: "800ms" },
+};
 
 export const BarChartRace: React.FC<BarChartRaceProps> = ({
   profiles,
@@ -43,8 +51,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
 }) => {
   const [currentGw, setCurrentGw] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState<number>(1); // 1x, 2x, 4x
-  const [vizMode, setVizMode] = useState<VizMode>("combined");
+  const [speed, setSpeed] = useState<number>(1); // 0.5x, 1x, 2x
+  const [vizMode, setVizMode] = useState<VizMode>("trail"); // Default: Trail Graph
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Compute cumulative standings for all managers at a specific gameweek
@@ -98,7 +106,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   // Playback timer loop
   useEffect(() => {
     if (isPlaying) {
-      const intervalMs = Math.max(500, 1800 / speed);
+      const config = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
       timerRef.current = setInterval(() => {
         setCurrentGw((prev) => {
           if (prev >= maxGw) {
@@ -107,7 +115,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           }
           return prev + 1;
         });
-      }, intervalMs);
+      }, config.intervalMs);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -123,16 +131,16 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
     1
   );
 
-  // Transition duration based on playback speed for fluid movement
-  const transitionDuration =
-    speed === 4 ? "350ms" : speed === 2 ? "600ms" : "850ms";
+  // Slower, smoother transition duration for readable card glide
+  const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
+  const transitionDuration = currentSpeedConfig.transitionDuration;
 
   const containerHeight =
     (profiles?.length || currentStandings.length) * STEP;
 
   return (
     <div className="space-y-6">
-      {/* Race & Trail Master Controls Card */}
+      {/* Analytics Master Controls Card */}
       <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-5 sm:p-7 shadow-2xl overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
           <div>
@@ -146,52 +154,44 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               </span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
-              Rank Progression Race & Trajectory Trails
+              {vizMode === "trail"
+                ? "Gameweek Rank Trajectory Trail Graph"
+                : "Mini-League Rank Progression Race"}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Watch weekly overtakes animated in real-time alongside historical position trails
+              {vizMode === "trail"
+                ? "Explore historical position trails and rank switches across every gameweek"
+                : "Watch weekly overtakes animated with smooth, gentle card movements"}
             </p>
           </div>
 
-          {/* Controls: Playback, Speed, View Switcher */}
+          {/* Controls: View Switcher, Playback, Speed */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* View Mode Toggle */}
+            {/* View Mode Switcher: Trail Graph (Default) vs Bar Race */}
             <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               <button
-                onClick={() => setVizMode("combined")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  vizMode === "combined"
-                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="Show both Bar Race and Trajectory Trail"
-              >
-                <LayoutGrid className="h-3.5 w-3.5" />
-                <span>Combined</span>
-              </button>
-              <button
-                onClick={() => setVizMode("bars")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  vizMode === "bars"
-                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                title="Bar Chart Race only"
-              >
-                <BarChart2 className="h-3.5 w-3.5" />
-                <span>Race</span>
-              </button>
-              <button
                 onClick={() => setVizMode("trail")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
                   vizMode === "trail"
                     ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
                     : "text-slate-400 hover:text-slate-200"
                 }`}
-                title="Rank Trail Chart only"
+                title="Gameweek Rank Trajectory Trail Graph"
               >
                 <GitCommit className="h-3.5 w-3.5" />
                 <span>Trail Graph</span>
+              </button>
+              <button
+                onClick={() => setVizMode("bars")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  vizMode === "bars"
+                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                }`}
+                title="Bar Chart Race"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                <span>Bar Race</span>
               </button>
             </div>
 
@@ -228,9 +228,9 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               <RotateCcw className="h-4 w-4" />
             </button>
 
-            {/* Speed Toggle Buttons */}
+            {/* Speed Toggle Buttons (0.5x, 1x, 2x) */}
             <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              {[1, 2, 4].map((s) => (
+              {[0.5, 1, 2].map((s) => (
                 <button
                   key={s}
                   onClick={() => setSpeed(s)}
@@ -269,8 +269,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           />
         </div>
 
-        {/* Fluid Absolute-Positioned Card Container (Bar Chart Race) */}
-        {(vizMode === "combined" || vizMode === "bars") && (
+        {/* View 1: Bar Chart Race with Slower, Smoother Card Gliding */}
+        {vizMode === "bars" && (
           <div
             className="relative w-full mt-4"
             style={{ height: `${containerHeight}px` }}
@@ -291,7 +291,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     top: 0,
                     transform: `translateY(${topPosition}px)`,
                     height: `${ROW_HEIGHT}px`,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.2, 0.9, 0.3, 1)`,
                     zIndex: isLeader ? 20 : 10 - Math.min(m.currentRank, 9),
                   }}
                   className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md transition-shadow duration-300 ${
@@ -334,7 +334,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     <div
                       style={{
                         width: `${percentage}%`,
-                        transition: `width ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                        transition: `width ${transitionDuration} cubic-bezier(0.2, 0.9, 0.3, 1)`,
                       }}
                       className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all duration-300 ${
                         isLeader
@@ -376,8 +376,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         )}
       </div>
 
-      {/* Synchronized Rank Trajectory Trail Graph */}
-      {(vizMode === "combined" || vizMode === "trail") && (
+      {/* View 2: Gameweek Rank Trajectory Trail Graph (Default View) */}
+      {vizMode === "trail" && (
         <RankTrajectoryChart
           profiles={profiles}
           currentGw={currentGw}
