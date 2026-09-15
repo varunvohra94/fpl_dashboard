@@ -119,6 +119,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
     );
   };
 
+  const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
+
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
       {/* Table Header Controls */}
@@ -130,81 +132,60 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
             </h3>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
               {viewScope === "season"
-                ? `Cumulative Season (GW 1-${selectedGw})`
-                : `Gameweek ${selectedGw} Specific`}
+                ? `Overall Season Standings`
+                : `Gameweek ${activeDisplayGw} Specific`}
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewScope === "season"
               ? "Cumulative season leaderboard strictly within this mini-league (Net Points after hit deductions)"
-              : `Single gameweek rank within this mini-league for GW ${selectedGw}`}
+              : `Single gameweek rank within this mini-league for GW ${activeDisplayGw}`}
           </p>
         </div>
 
-        {/* View Scope & GW Selector Dropdown */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          {/* Scope Toggle */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-            <button
-              onClick={() => {
-                setViewScope("season");
-                setSortField("league_rank");
-                setSortAsc(true);
+        {/* View Scope Dropdown & Search Bar */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Unified Scope Dropdown Menu */}
+          <div className="relative">
+            <select
+              value={viewScope === "season" ? "season" : String(activeDisplayGw)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "season") {
+                  setViewScope("season");
+                  setSortField("league_rank");
+                  setSortAsc(true);
+                  onSelectGw?.(0);
+                } else {
+                  const gwNum = Number(val);
+                  setViewScope("gameweek");
+                  setSortField("league_rank");
+                  setSortAsc(true);
+                  onSelectGw?.(gwNum);
+                }
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                viewScope === "season"
-                  ? "bg-emerald-500 text-slate-950 shadow-md font-black"
-                  : "text-slate-400 hover:text-white"
-              }`}
+              aria-label="Select Standings Scope"
+              className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
             >
-              <Trophy className="h-3.5 w-3.5" />
-              <span>Overall Season</span>
-            </button>
-
-            <button
-              onClick={() => {
-                setViewScope("gameweek");
-                setSortField("league_rank");
-                setSortAsc(true);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                viewScope === "gameweek"
-                  ? "bg-cyan-500 text-slate-950 shadow-md font-black"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              <span>GW {selectedGw} Only</span>
-            </button>
+              <option value="season">🏆 Overall Season</option>
+              {Array.from(
+                { length: Math.max(maxAvailableGw, 1) },
+                (_, i) => maxAvailableGw - i
+              ).map((gw) => (
+                <option key={gw} value={gw}>
+                  ⚽ Gameweek {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
-
-          {/* GW Dropdown */}
-          {onSelectGw && (
-            <div className="relative">
-              <select
-                value={selectedGw}
-                onChange={(e) => onSelectGw(Number(e.target.value))}
-                className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                {Array.from(
-                  { length: Math.max(maxAvailableGw, 1) },
-                  (_, i) => i + 1
-                ).map((gw) => (
-                  <option key={gw} value={gw}>
-                    Gameweek {gw}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500 pointer-events-none" />
-            </div>
-          )}
 
           {/* Search Bar */}
           <div className="relative flex-1 sm:w-48 lg:w-44">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder="Search manager / squad..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors"
@@ -240,7 +221,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               >
                 <div className="flex items-center gap-1">
                   <span>
-                    {viewScope === "season" ? "Season Net Points" : `GW${selectedGw} Net Score`}
+                    {viewScope === "season"
+                      ? "Season Net Points"
+                      : `GW${activeDisplayGw} Net Score`}
                   </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
@@ -253,7 +236,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               >
                 <div className="flex items-center gap-1">
                   <span>
-                    {viewScope === "season" ? "GW Hits" : `GW${selectedGw} Hits`}
+                    {viewScope === "season"
+                      ? "GW Hits"
+                      : `GW${activeDisplayGw} Hits`}
                   </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
@@ -281,7 +266,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               >
                 <div className="flex items-center gap-1">
                   <span>
-                    {viewScope === "season" ? `GW${selectedGw} Net` : "Season Total Net"}
+                    {viewScope === "season"
+                      ? `Latest GW Net`
+                      : "Season Total Net"}
                   </span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
@@ -298,123 +285,128 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
+
+              {/* Active Chip Badge */}
+              <th className="py-3.5 px-4 text-center hidden sm:table-cell">
+                Chip
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {filteredStandings.map((manager, idx) => {
-              const chip = getChipLabel(manager.chip_used);
-              const isLeader = manager.league_rank === 1;
+          <tbody className="divide-y divide-slate-800/60 tabular-nums">
+            {filteredStandings.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-12 text-center text-slate-500">
+                  No rivals found matching your search.
+                </td>
+              </tr>
+            ) : (
+              filteredStandings.map((m) => {
+                const isLeader = m.league_rank === 1;
+                const chipInfo = getChipLabel(m.chip_used);
 
-              return (
-                <tr
-                  key={manager.manager_id}
-                  onClick={() => onSelectManager(manager.manager_id)}
-                  className={`cursor-pointer transition-colors ${
-                    isLeader
-                      ? "bg-emerald-950/20 hover:bg-emerald-950/30"
-                      : idx % 2 === 0
-                      ? "bg-transparent hover:bg-slate-800/40"
-                      : "bg-slate-950/20 hover:bg-slate-800/40"
-                  }`}
-                >
-                  {/* Leftmost Mini-League Rank strictly (1 to N) */}
-                  <td className="py-3.5 px-4 font-bold tabular-nums">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black ${
-                          isLeader
-                            ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30"
-                            : manager.league_rank <= 3
-                            ? "bg-slate-800 text-slate-200 border border-slate-700"
-                            : "text-slate-400 font-bold"
-                        }`}
-                      >
-                        {manager.league_rank}
-                      </span>
-                    </div>
-                  </td>
-
-                  {/* Manager & Team Name */}
-                  <td className="py-3.5 px-4">
-                    <div className="font-bold text-white hover:text-emerald-400 transition-colors">
-                      {manager.player_name || "Manager"}
-                    </div>
-                    <div className="text-[11px] text-slate-400 font-medium truncate max-w-[180px] sm:max-w-none">
-                      {manager.entry_name || "Squad"}
-                    </div>
-                  </td>
-
-                  {/* Primary Hero Points (Season Total or GW Net) */}
-                  <td className="py-3.5 px-4 font-black tabular-nums text-sm text-emerald-400">
-                    {viewScope === "season" ? (
-                      <>
-                        <span>{manager.total_net_points} pts</span>
-                        <span className="text-[10px] text-slate-500 font-normal ml-1.5 hidden sm:inline">
-                          ({manager.total_points} gross)
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span>{manager.net_points} pts</span>
-                        <span className="text-[10px] text-slate-500 font-normal ml-1.5 hidden sm:inline">
-                          ({manager.points} gross)
-                        </span>
-                      </>
-                    )}
-                  </td>
-
-                  {/* Transfer Hits */}
-                  <td className="py-3.5 px-4 tabular-nums hidden md:table-cell">
-                    {manager.event_transfers_cost > 0 ? (
-                      <span className="font-bold text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
-                        -{manager.event_transfers_cost} pts
-                      </span>
-                    ) : (
-                      <span className="text-slate-500 font-medium">0 pts</span>
-                    )}
-                  </td>
-
-                  {/* 3-GW Form Badge */}
-                  <td className="py-3.5 px-4 tabular-nums">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${getFormColor(
-                        manager.rolling_3_avg
-                      )}`}
-                    >
-                      {manager.rolling_3_avg !== null && manager.rolling_3_avg !== undefined
-                        ? manager.rolling_3_avg.toFixed(1)
-                        : "—"}
-                    </span>
-                  </td>
-
-                  {/* Secondary Points Column */}
-                  <td className="py-3.5 px-4 tabular-nums font-semibold text-slate-200 hidden sm:table-cell">
-                    <div className="flex items-center gap-2">
-                      <span>
-                        {viewScope === "season"
-                          ? `${manager.net_points} pts`
-                          : `${manager.total_net_points} pts`}
-                      </span>
-                      {chip && (
+                return (
+                  <tr
+                    key={m.manager_id}
+                    onClick={() => onSelectManager(m.manager_id)}
+                    className={`cursor-pointer transition-colors ${
+                      isLeader
+                        ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                        : "hover:bg-slate-800/40"
+                    }`}
+                  >
+                    {/* Mini-League Sequential Rank (1..N) */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-1 ${chip.color}`}
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-transform ${
+                            isLeader
+                              ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30 scale-105"
+                              : m.league_rank <= 3
+                              ? "bg-slate-800 text-slate-200 border border-slate-700 font-bold"
+                              : "text-slate-400 font-semibold"
+                          }`}
                         >
-                          <Sparkles className="h-2.5 w-2.5" />
-                          {chip.name}
+                          {m.league_rank}
+                        </span>
+                        {isLeader && (
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Manager & Team Name */}
+                    <td className="py-3.5 px-4">
+                      <div className="truncate max-w-[140px] sm:max-w-[200px]">
+                        <span className="font-extrabold text-white text-xs sm:text-sm block truncate group-hover:text-emerald-400">
+                          {m.player_name || "Manager"}
+                        </span>
+                        <span className="text-[11px] text-slate-400 block truncate font-medium">
+                          {m.entry_name || "Squad"}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Primary Net Points Score (Cumulative or Single GW) */}
+                    <td className="py-3.5 px-4 font-black text-sm text-emerald-400">
+                      {viewScope === "season"
+                        ? `${m.total_net_points ?? m.total_points ?? 0} pts`
+                        : `${m.net_points ?? m.points ?? 0} pts`}
+                    </td>
+
+                    {/* Transfer Hits Deduction */}
+                    <td className="py-3.5 px-4 hidden md:table-cell">
+                      {(m.event_transfers_cost ?? 0) > 0 ? (
+                        <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                          -{m.event_transfers_cost} pts
+                        </span>
+                      ) : (
+                        <span className="text-slate-600 text-xs font-medium">
+                          0
                         </span>
                       )}
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Global FPL Rank */}
-                  <td className="py-3.5 px-4 tabular-nums text-slate-400 font-medium hidden lg:table-cell">
-                    {manager.overall_rank
-                      ? manager.overall_rank.toLocaleString()
-                      : "—"}
-                  </td>
-                </tr>
-              );
-            })}
+                    {/* Rolling 3-GW Form Indicator */}
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-flex items-center text-[11px] font-black px-2 py-0.5 rounded-lg border ${getFormColor(
+                          m.rolling_3_avg
+                        )}`}
+                      >
+                        {m.rolling_3_avg !== null && m.rolling_3_avg !== undefined
+                          ? m.rolling_3_avg.toFixed(1)
+                          : "-"}
+                      </span>
+                    </td>
+
+                    {/* Secondary Net Points */}
+                    <td className="py-3.5 px-4 text-slate-300 font-bold hidden sm:table-cell">
+                      {viewScope === "season"
+                        ? `${m.net_points ?? m.points ?? 0} pts`
+                        : `${m.total_net_points ?? m.total_points ?? 0} pts`}
+                    </td>
+
+                    {/* Global FPL Overall Rank */}
+                    <td className="py-3.5 px-4 text-slate-400 text-xs hidden lg:table-cell font-medium">
+                      {m.overall_rank ? `#${m.overall_rank.toLocaleString()}` : "-"}
+                    </td>
+
+                    {/* Active Chip Badge */}
+                    <td className="py-3.5 px-4 text-center hidden sm:table-cell">
+                      {chipInfo ? (
+                        <span
+                          className={`text-[10px] font-black px-2 py-0.5 rounded-lg border uppercase tracking-wider ${chipInfo.color}`}
+                        >
+                          {chipInfo.name}
+                        </span>
+                      ) : (
+                        <span className="text-slate-700 text-xs">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
