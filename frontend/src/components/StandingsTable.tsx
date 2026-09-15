@@ -126,16 +126,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       {/* Table Header Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base sm:text-lg font-black text-white">
-              Mini-League Rival Standings
-            </h3>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/30">
-              {viewScope === "season"
-                ? `Overall Season Standings`
-                : `Gameweek ${activeDisplayGw} Specific`}
-            </span>
-          </div>
+          <h3 className="text-base sm:text-lg font-black text-white">
+            Mini-League Rival Standings
+          </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewScope === "season"
               ? "Cumulative season leaderboard strictly within this mini-league (Net Points after hit deductions)"
