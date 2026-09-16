@@ -124,20 +124,20 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
       {/* Table Header Controls */}
-      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-base sm:text-lg font-black text-white">
-            Mini-League Rival Standings
+          <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
+            FPL Showdown
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             {viewScope === "season"
-              ? "Cumulative season leaderboard strictly within this mini-league (Net Points after hit deductions)"
-              : `Single gameweek rank within this mini-league for GW ${activeDisplayGw}`}
+              ? "Net Points (After Hits)"
+              : `Gameweek ${activeDisplayGw} Scores`}
           </p>
         </div>
 
         {/* View Scope Dropdown & Search Bar */}
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           {/* Unified Scope Dropdown Menu */}
           <div className="relative">
             <select
@@ -174,14 +174,14 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           </div>
 
           {/* Search Bar */}
-          <div className="relative flex-1 sm:w-48 lg:w-44">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <div className="relative flex-1 sm:w-60 lg:w-64 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
             <input
               type="text"
-              placeholder="Search manager / squad..."
+              placeholder="Search manager or squad..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors"
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors shadow-sm"
             />
           </div>
         </div>
