@@ -56,14 +56,9 @@ const TRAIL_COLORS = [
   "#E11D48", // Crimson
 ];
 
-const SPEED_CONFIG: Record<
-  number,
-  { intervalMs: number; transitionDuration: string }
-> = {
-  0.5: { intervalMs: 3200, transitionDuration: "3000ms" },
-  1: { intervalMs: 2200, transitionDuration: "2000ms" },
-  2: { intervalMs: 1200, transitionDuration: "1100ms" },
-};
+const PLAYBACK_INTERVAL_MS = 2200;
+const TRANSITION_DURATION = "2000ms";
+const DURATION_MS = 2000;
 
 interface AnimatedCounterProps {
   value: number;
@@ -122,7 +117,6 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
 }) => {
   const [currentGw, setCurrentGw] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState<number>(1); // 0.5x, 1x, 2x
   const [vizMode, setVizMode] = useState<VizMode>("trail"); // Default: Trail Graph
   const [spotlightManagerId, setSpotlightManagerId] = useState<number | null>(
     null
@@ -219,7 +213,6 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   // Playback timer loop
   useEffect(() => {
     if (isPlaying) {
-      const config = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
       timerRef.current = setInterval(() => {
         setCurrentGw((prev) => {
           if (prev >= maxGw) {
@@ -228,7 +221,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           }
           return prev + 1;
         });
-      }, config.intervalMs);
+      }, PLAYBACK_INTERVAL_MS);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -236,7 +229,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, speed, maxGw]);
+  }, [isPlaying, maxGw]);
 
   const currentStandings = getRankedStatesForGw(currentGw);
   const maxPoints = Math.max(
@@ -264,9 +257,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
 
   const milestoneGws = getMilestones(safeMaxGw);
 
-  const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
-  const transitionDuration = currentSpeedConfig.transitionDuration;
-  const durationMs = parseInt(transitionDuration, 10) || 2000;
+  const transitionDuration = TRANSITION_DURATION;
+  const durationMs = DURATION_MS;
 
   const containerHeight =
     (profiles?.length || currentStandings.length) * STEP;
@@ -283,7 +275,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5" />
-                Interactive Mini-League Analytics
+                FPL Showdown
               </span>
               <span className="text-xs text-slate-400 font-semibold">
                 Gameweek {currentGw === 0 ? "0 (Baseline)" : currentGw} of {maxGw}
@@ -291,27 +283,26 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
               {vizMode === "trail"
-                ? "Gameweek Rank Trajectory Trail Graph"
-                : "Mini-League Rank Progression Race"}
+                ? "GW Rank Trajectory"
+                : "GW Rank Progression Race"}
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
               {vizMode === "trail"
-                ? "Continuous smooth trajectory lines showing overtakes and rank switches across gameweeks"
-                : "Follow your name as cards glide smoothly across positions in real-time"}
+                ? "Rank movements and positions"
+                : "Points and position race"}
             </p>
           </div>
 
-          {/* Controls: View Switcher, Playback, Speed */}
+          {/* Controls: View Switcher and Playback */}
           <div className="flex flex-wrap items-center gap-3">
             {/* View Mode Switcher: Trail Graph (Default) vs Bar Race */}
             <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               <button
                 onClick={() => setVizMode("trail")}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  vizMode === "trail"
-                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${vizMode === "trail"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+                  }`}
                 title="Gameweek Rank Trajectory Trail Graph"
               >
                 <GitCommit className="h-3.5 w-3.5" />
@@ -319,11 +310,10 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               </button>
               <button
                 onClick={() => setVizMode("bars")}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                  vizMode === "bars"
-                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${vizMode === "bars"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+                  }`}
                 title="Bar Chart Race"
               >
                 <BarChart2 className="h-3.5 w-3.5" />
@@ -363,23 +353,6 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             >
               <RotateCcw className="h-4 w-4" />
             </button>
-
-            {/* Speed Toggle Buttons (0.5x, 1x, 2x) */}
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              {[0.5, 1, 2].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSpeed(s)}
-                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    speed === s
-                      ? "bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 
@@ -410,13 +383,12 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                       borderColor: isFocused ? color : undefined,
                       boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                      isFocused
-                        ? "bg-slate-800 text-white"
-                        : isDimmed
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${isFocused
+                      ? "bg-slate-800 text-white"
+                      : isDimmed
                         ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
                         : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
-                    }`}
+                      }`}
                   >
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
@@ -484,12 +456,12 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               const zIndex = isFocused
                 ? 90
                 : isLeader
-                ? 50
-                : rankDelta > 0
-                ? 35 // Rising cards glide on top
-                : rankDelta < 0
-                ? 25 // Dropping cards glide underneath smoothly
-                : 20;
+                  ? 50
+                  : rankDelta > 0
+                    ? 35 // Rising cards glide on top
+                    : rankDelta < 0
+                      ? 25 // Dropping cards glide underneath smoothly
+                      : 20;
 
               return (
                 <div
@@ -510,33 +482,31 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     borderColor: isFocused
                       ? m.color
                       : isLeader
-                      ? "rgba(0, 255, 135, 0.6)"
-                      : undefined,
+                        ? "rgba(0, 255, 135, 0.6)"
+                        : undefined,
                     boxShadow: isFocused
                       ? `0 0 25px ${m.color}60, 0 15px 35px rgba(0, 0, 0, 0.8)`
                       : isLeader
-                      ? "0 10px 25px -5px rgba(0, 255, 135, 0.2)"
-                      : undefined,
+                        ? "0 10px 25px -5px rgba(0, 255, 135, 0.2)"
+                        : undefined,
                     transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
                   }}
-                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md cursor-pointer will-change-transform ${
-                    isLeader
-                      ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90"
-                      : isFocused
+                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md cursor-pointer will-change-transform ${isLeader
+                    ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90"
+                    : isFocused
                       ? "bg-slate-900/95"
                       : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700 shadow-md"
-                  }`}
+                    }`}
                 >
                   {/* Rank Position Badge */}
                   <div className="w-7 sm:w-8 shrink-0 flex items-center justify-center">
                     <span
-                      className={`w-7 h-7 rounded-xl text-xs font-black flex items-center justify-center transition-colors duration-300 ${
-                        isLeader
-                          ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30"
-                          : m.currentRank <= 3
+                      className={`w-7 h-7 rounded-xl text-xs font-black flex items-center justify-center transition-colors duration-300 ${isLeader
+                        ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30"
+                        : m.currentRank <= 3
                           ? "bg-slate-800 text-slate-200 border border-slate-700"
                           : "text-slate-500 font-bold"
-                      }`}
+                        }`}
                     >
                       {isLeader ? (
                         <Crown className="h-4 w-4 text-slate-950 fill-current" />
@@ -570,20 +540,18 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                         backgroundColor: isFocused ? m.color : undefined,
                         transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease`,
                       }}
-                      className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all ${
-                        isFocused
-                          ? "text-slate-950 shadow-md"
-                          : isLeader
+                      className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all ${isFocused
+                        ? "text-slate-950 shadow-md"
+                        : isLeader
                           ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/30"
                           : m.currentRank <= 3
-                          ? "bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 shadow-sm"
-                          : "bg-gradient-to-r from-slate-700 via-slate-600 to-slate-500"
-                      }`}
+                            ? "bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 shadow-sm"
+                            : "bg-gradient-to-r from-slate-700 via-slate-600 to-slate-500"
+                        }`}
                     >
                       <span
-                        className={`text-xs font-black tabular-nums drop-shadow-sm whitespace-nowrap ${
-                          isFocused ? "text-slate-950" : "text-white"
-                        }`}
+                        className={`text-xs font-black tabular-nums drop-shadow-sm whitespace-nowrap ${isFocused ? "text-slate-950" : "text-white"
+                          }`}
                       >
                         <AnimatedCounter
                           value={m.cumulativeNetPoints}
@@ -597,11 +565,10 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   <div className="shrink-0 flex items-center min-w-[50px] sm:min-w-[65px] justify-end">
                     <div
                       key={`gw-score-${m.managerId}-gw-${currentGw}`}
-                      className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500 ${
-                        currentGw === 0
-                          ? "bg-slate-800/40 text-slate-500 border-slate-800"
-                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
-                      }`}
+                      className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500 ${currentGw === 0
+                        ? "bg-slate-800/40 text-slate-500 border-slate-800"
+                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                        }`}
                       title={
                         currentGw === 0
                           ? "Pre-Season Baseline (0 points)"
@@ -615,9 +582,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                         {currentGw === 0 ? "0" : `+${m.gwNetPoints}`}
                       </span>
                       <span
-                        className={`text-[9px] uppercase tracking-tighter hidden md:inline ${
-                          currentGw === 0 ? "text-slate-600" : "text-emerald-500/70"
-                        }`}
+                        className={`text-[9px] uppercase tracking-tighter hidden md:inline ${currentGw === 0 ? "text-slate-600" : "text-emerald-500/70"
+                          }`}
                       >
                         {currentGw === 0 ? "pts" : "gw"}
                       </span>
@@ -719,9 +685,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
                       >
                         <div
-                          className={`w-0.5 h-2 rounded-full ${
-                            isPassed ? "bg-emerald-400/50" : "bg-slate-700/80"
-                          }`}
+                          className={`w-0.5 h-2 rounded-full ${isPassed ? "bg-emerald-400/50" : "bg-slate-700/80"
+                            }`}
                         />
                       </div>
                     );
@@ -734,13 +699,12 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                       className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
                     >
                       <div
-                        className={`rounded-full transition-all duration-300 ${
-                          isCurrent
-                            ? "w-4.5 h-4.5 bg-emerald-300 border-2 border-slate-950 shadow-lg shadow-emerald-400/50 scale-110"
-                            : isPassed
+                        className={`rounded-full transition-all duration-300 ${isCurrent
+                          ? "w-4.5 h-4.5 bg-emerald-300 border-2 border-slate-950 shadow-lg shadow-emerald-400/50 scale-110"
+                          : isPassed
                             ? "w-2.5 h-2.5 bg-emerald-400 border border-slate-950"
                             : "w-2 h-2 bg-slate-700 border border-slate-900"
-                        }`}
+                          }`}
                       />
                     </div>
                   );
@@ -791,30 +755,27 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                             gw === 0
                               ? "translateX(0%)"
                               : gw === safeMaxGw
-                              ? "translateX(-100%)"
-                              : "translateX(-50%)",
+                                ? "translateX(-100%)"
+                                : "translateX(-50%)",
                         }}
-                        className={`absolute top-0 flex flex-col items-center group cursor-pointer transition-all ${
-                          isCurrent ? "z-20 scale-105" : "z-10 hover:scale-105"
-                        }`}
+                        className={`absolute top-0 flex flex-col items-center group cursor-pointer transition-all ${isCurrent ? "z-20 scale-105" : "z-10 hover:scale-105"
+                          }`}
                       >
                         <div
-                          className={`w-0.5 h-2 rounded-full mb-1 transition-colors ${
-                            isCurrent
-                              ? "bg-emerald-400 h-2.5"
-                              : isPassed
+                          className={`w-0.5 h-2 rounded-full mb-1 transition-colors ${isCurrent
+                            ? "bg-emerald-400 h-2.5"
+                            : isPassed
                               ? "bg-emerald-500/50"
                               : "bg-slate-700 group-hover:bg-slate-500"
-                          }`}
+                            }`}
                         />
                         <span
-                          className={`text-[10px] sm:text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded transition-colors ${
-                            isCurrent
-                              ? "text-emerald-300 font-black bg-emerald-500/10 border border-emerald-500/30"
-                              : isPassed
+                          className={`text-[10px] sm:text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded transition-colors ${isCurrent
+                            ? "text-emerald-300 font-black bg-emerald-500/10 border border-emerald-500/30"
+                            : isPassed
                               ? "text-slate-300 group-hover:text-white"
                               : "text-slate-500 group-hover:text-slate-300"
-                          }`}
+                            }`}
                         >
                           {gw === 0 ? "Start" : `GW ${gw}`}
                         </span>
@@ -856,33 +817,30 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                           setIsPlaying(false);
                           setCurrentGw(gw);
                         }}
-                        className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${
-                          isCurrent
-                            ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
-                            : isPassed
+                        className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${isCurrent
+                          ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
+                          : isPassed
                             ? "bg-slate-900/90 border-slate-800/90 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800/60"
                             : "bg-slate-950/50 border-slate-900/80 text-slate-600 hover:border-slate-800 hover:text-slate-400"
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`text-xs sm:text-sm font-black leading-tight ${
-                            isCurrent
-                              ? "text-emerald-300"
-                              : isPassed
+                          className={`text-xs sm:text-sm font-black leading-tight ${isCurrent
+                            ? "text-emerald-300"
+                            : isPassed
                               ? "text-slate-200"
                               : "text-slate-500"
-                          }`}
+                            }`}
                         >
                           {gw === 0 ? "Start" : `GW ${gw}`}
                         </span>
                         <span
-                          className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${
-                            isCurrent
-                              ? "text-emerald-400/90"
-                              : isPassed
+                          className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${isCurrent
+                            ? "text-emerald-400/90"
+                            : isPassed
                               ? "text-slate-400"
                               : "text-slate-600"
-                          }`}
+                            }`}
                         >
                           {gw === 0 ? "0 pts" : `Round ${gw}`}
                         </span>
