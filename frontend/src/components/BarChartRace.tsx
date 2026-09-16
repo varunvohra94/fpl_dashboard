@@ -423,7 +423,10 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             className="relative w-full"
             style={{ height: `${containerHeight}px` }}
           >
-            {currentStandings.map((m) => {
+            {profiles.map((p) => {
+              const m = currentStandings.find((s) => s.managerId === p.id);
+              if (!m) return null;
+
               const topPosition = (m.currentRank - 1) * STEP;
               const percentage = Math.max(
                 16,
@@ -434,14 +437,16 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               const isFocused = activeFocusId === m.managerId;
               const isDimmed = activeFocusId !== null && !isFocused;
 
-              // Pure vertical glide without scale jitter for silky smooth card following
+              // Silky smooth layering when cards pass each other
               const zIndex = isFocused
-                ? 80
+                ? 90
                 : isLeader
-                ? 40
+                ? 50
                 : rankDelta > 0
-                ? 30
-                : 15;
+                ? 35 // Rising cards glide on top
+                : rankDelta < 0
+                ? 25 // Dropping cards glide underneath smoothly
+                : 20;
 
               return (
                 <div
