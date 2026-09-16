@@ -122,7 +122,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
 
   return (
-    <div className="flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
+    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
       {/* Table Header Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -188,7 +188,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto flex-1">
         <table className="w-full text-left text-xs min-w-[700px]">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
