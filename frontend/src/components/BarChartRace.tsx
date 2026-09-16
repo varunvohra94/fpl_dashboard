@@ -57,9 +57,9 @@ const SPEED_CONFIG: Record<
   number,
   { intervalMs: number; transitionDuration: string }
 > = {
-  0.5: { intervalMs: 4200, transitionDuration: "2400ms" },
-  1: { intervalMs: 2800, transitionDuration: "1600ms" },
-  2: { intervalMs: 1600, transitionDuration: "900ms" },
+  0.5: { intervalMs: 3200, transitionDuration: "3000ms" },
+  1: { intervalMs: 2200, transitionDuration: "2000ms" },
+  2: { intervalMs: 1200, transitionDuration: "1100ms" },
 };
 
 export const BarChartRace: React.FC<BarChartRaceProps> = ({
@@ -403,7 +403,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                       : isLeader
                       ? "0 10px 25px -5px rgba(0, 255, 135, 0.2)"
                       : undefined,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
                   }}
                   className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md cursor-pointer will-change-transform ${
                     isLeader
@@ -454,7 +454,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                       style={{
                         width: `${percentage}%`,
                         backgroundColor: isFocused ? m.color : undefined,
-                        transition: `width ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), background-color 300ms ease`,
+                        transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease`,
                       }}
                       className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all ${
                         isFocused

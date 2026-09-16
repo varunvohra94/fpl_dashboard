@@ -43,7 +43,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
   currentGw,
   maxGw,
-  transitionDuration = "1600ms",
+  transitionDuration = "2000ms",
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
@@ -307,7 +307,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             strokeDasharray="4 2"
             opacity="0.75"
             style={{
-              transition: `x1 ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), x2 ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+              transition: `x1 ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), x2 ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
             }}
           />
 
@@ -348,7 +348,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     opacity="0.35"
                     filter="url(#trail-glow)"
                     style={{
-                      transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                      transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                     }}
                   />
                 )}
@@ -365,7 +365,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{
-                    transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1), stroke-width 300ms ease`,
+                    transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
                   }}
                 />
 
@@ -426,7 +426,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   key={`sliding-head-${p.id}`}
                   style={{
                     transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.25, 1, 0.5, 1)`,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                     zIndex: isFocused ? 50 : 20,
                   }}
                   className="cursor-pointer select-none"
