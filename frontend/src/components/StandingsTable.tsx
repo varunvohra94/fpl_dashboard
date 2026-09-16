@@ -122,7 +122,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
+    <div className="h-full flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
       {/* Table Header Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -188,8 +188,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="flex-1 min-h-0 overflow-x-auto">
+        <table className="w-full text-left text-xs min-w-[700px]">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <th
@@ -279,8 +279,8 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                 </div>
               </th>
 
-              {/* Active Chip Badge */}
-              <th className="py-3.5 px-4 text-center hidden sm:table-cell">
+              {/* Active Chip Badge Header */}
+              <th className="py-3.5 px-4 text-center w-36 min-w-[140px] hidden sm:table-cell">
                 Chip
               </th>
             </tr>
@@ -288,7 +288,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           <tbody className="divide-y divide-slate-800/60 tabular-nums">
             {filteredStandings.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-slate-500">
+                <td colSpan={8} className="py-12 text-center text-slate-500">
                   No rivals found matching your search.
                 </td>
               </tr>
@@ -384,16 +384,16 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                       {m.overall_rank ? `#${m.overall_rank.toLocaleString()}` : "-"}
                     </td>
 
-                    {/* Active Chip Badge */}
-                    <td className="py-3.5 px-4 text-center hidden sm:table-cell">
+                    {/* Active Chip Badge Cell */}
+                    <td className="py-3.5 px-4 text-center w-36 min-w-[140px] whitespace-nowrap hidden sm:table-cell">
                       {chipInfo ? (
                         <span
-                          className={`text-[10px] font-black px-2 py-0.5 rounded-lg border uppercase tracking-wider ${chipInfo.color}`}
+                          className={`inline-flex items-center justify-center text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wide whitespace-nowrap shadow-sm leading-none ${chipInfo.color}`}
                         >
                           {chipInfo.name}
                         </span>
                       ) : (
-                        <span className="text-slate-700 text-xs">-</span>
+                        <span className="text-slate-700 text-xs font-semibold">-</span>
                       )}
                     </td>
                   </tr>

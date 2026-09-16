@@ -226,9 +226,9 @@ export default function DashboardPage() {
         {/* Tab 1: Standings & News Feed */}
         {activeTab === "standings" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
               {/* Standings Table with its own GW Dropdown */}
-              <div className="lg:col-span-7 xl:col-span-8">
+              <div className="lg:col-span-7 xl:col-span-8 flex flex-col h-full">
                 <StandingsTable
                   standings={standingsData?.standings || []}
                   selectedGw={standingsGw}
@@ -239,7 +239,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Transfer Feed with its own GW Dropdown */}
-              <div className="lg:col-span-5 xl:col-span-4">
+              <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full">
                 <TransferFeed
                   transfers={transfersData?.transfers || []}
                   selectedGw={transfersGw}

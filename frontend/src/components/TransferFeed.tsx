@@ -153,7 +153,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
       </div>
 
       {/* Feed List */}
-      <div className="mt-4 space-y-3 overflow-y-auto max-h-[580px] pr-1">
+      <div className="mt-4 space-y-3 overflow-y-auto flex-1 min-h-0 pr-1">
         {filteredGroups.length === 0 ? (
           <div className="py-12 text-center text-slate-500 text-xs">
             No transfers recorded {selectedGw > 0 ? `for Gameweek ${selectedGw}` : ""} matching this filter.
