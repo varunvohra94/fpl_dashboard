@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Trophy,
-  Users,
   BarChart3,
   AlertCircle,
 } from "lucide-react";
@@ -12,14 +11,12 @@ import {
   LeagueTransfersResponse,
   ManagerProfileResponse,
   PipelineStatusResponse,
-  TopPlayersResponse,
 } from "../lib/types";
 import {
   fetchLeagueStandings,
   fetchLeagueTransfers,
   fetchManagerHistory,
   fetchPipelineStatus,
-  fetchTopPlayers,
 } from "../lib/api";
 import { generateHighlightCards } from "../utils/highlights";
 import { Header } from "../components/Header";
@@ -30,9 +27,8 @@ import { ManagerModal } from "../components/ManagerModal";
 import { BarChartRace } from "../components/BarChartRace";
 import { FormHitsMatrix } from "../components/FormHitsMatrix";
 import { ChipMatrix } from "../components/ChipMatrix";
-import { TopPlayersTable } from "../components/TopPlayersTable";
 
-type ActiveTab = "standings" | "race" | "players";
+type ActiveTab = "standings" | "race";
 
 export default function DashboardPage() {
   const [maxAvailableGw, setMaxAvailableGw] = useState<number>(1);
@@ -42,14 +38,12 @@ export default function DashboardPage() {
   // Independent Section Gameweek States
   const [standingsGw, setStandingsGw] = useState<number>(0); // 0 = Overall Season cumulative
   const [transfersGw, setTransfersGw] = useState<number>(0); // 0 = All Gameweeks
-  const [playersGw, setPlayersGw] = useState<number>(1);
 
   // Data states
   const [standingsData, setStandingsData] = useState<LeagueStandingsResponse | null>(null);
   const [transfersData, setTransfersData] = useState<LeagueTransfersResponse | null>(null);
   const [profilesData, setProfilesData] = useState<ManagerProfileResponse[]>([]);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null);
-  const [topPlayersData, setTopPlayersData] = useState<TopPlayersResponse | null>(null);
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,11 +60,9 @@ export default function DashboardPage() {
         1;
 
       setMaxAvailableGw(latestGw);
-      setPlayersGw(latestGw);
     } catch (err: any) {
       console.warn("Could not fetch pipeline status, defaulting to GW 1:", err);
       setMaxAvailableGw(1);
-      setPlayersGw(1);
     }
   }, []);
 
@@ -79,21 +71,19 @@ export default function DashboardPage() {
   }, [loadInitialStatus]);
 
   // Fetch full dashboard data
-  const loadDashboardData = useCallback(async (currentMaxGw: number, targetPlayersGw: number) => {
+  const loadDashboardData = useCallback(async (currentMaxGw: number) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // 1. Fetch Standings, Transfers (all season / up to latest), and Top Players concurrently
-      const [standingsRes, transfersRes, playersRes] = await Promise.all([
+      // 1. Fetch Standings and Transfers concurrently
+      const [standingsRes, transfersRes] = await Promise.all([
         fetchLeagueStandings(undefined, currentMaxGw > 0 ? currentMaxGw : undefined),
         fetchLeagueTransfers(undefined, undefined, 200),
-        fetchTopPlayers(targetPlayersGw > 0 ? targetPlayersGw : currentMaxGw, 40).catch(() => null),
       ]);
 
       setStandingsData(standingsRes);
       setTransfersData(transfersRes);
-      if (playersRes) setTopPlayersData(playersRes);
 
       // 2. Fetch all manager profiles for season records, race & matrix
       if (standingsRes?.standings?.length > 0) {
@@ -118,20 +108,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (maxAvailableGw > 0) {
-      loadDashboardData(maxAvailableGw, playersGw);
+      loadDashboardData(maxAvailableGw);
     }
-  }, [maxAvailableGw, playersGw, loadDashboardData]);
-
-  // Gameweek change handler for TopPlayersTable
-  const handleSelectPlayersGw = async (gw: number) => {
-    setPlayersGw(gw);
-    try {
-      const playersRes = await fetchTopPlayers(gw, 40);
-      if (playersRes) setTopPlayersData(playersRes);
-    } catch (err) {
-      console.error(`Failed to fetch players for GW ${gw}:`, err);
-    }
-  };
+  }, [maxAvailableGw, loadDashboardData]);
 
   // Compute story highlights for the latest active season
   const highlightCards = generateHighlightCards(
@@ -155,7 +134,7 @@ export default function DashboardPage() {
       <Header
         leagueName={`League #${standingsData?.league_id || 944559}`}
         pipelineStatus={pipelineStatus}
-        onRefresh={() => loadDashboardData(maxAvailableGw, playersGw)}
+        onRefresh={() => loadDashboardData(maxAvailableGw)}
         isLoading={isLoading}
       />
 
@@ -168,7 +147,7 @@ export default function DashboardPage() {
               <span>{error}</span>
             </div>
             <button
-              onClick={() => loadDashboardData(maxAvailableGw, playersGw)}
+              onClick={() => loadDashboardData(maxAvailableGw)}
               className="px-3 py-1 text-xs font-bold rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 transition-colors cursor-pointer"
             >
               Retry
@@ -207,18 +186,6 @@ export default function DashboardPage() {
             >
               <BarChart3 className="h-4 w-4" />
               <span>Stats</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("players")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                activeTab === "players"
-                  ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/10 text-cyan-300 border border-cyan-500/40 shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
-              }`}
-            >
-              <Users className="h-4 w-4" />
-              <span>Matchday Stats</span>
             </button>
           </div>
         </div>
@@ -267,16 +234,6 @@ export default function DashboardPage() {
               selectedGw={maxAvailableGw}
             />
           </div>
-        )}
-
-        {/* Tab 3: Matchday Stats */}
-        {activeTab === "players" && (
-          <TopPlayersTable
-            players={topPlayersData?.players || []}
-            selectedGw={playersGw}
-            maxAvailableGw={maxAvailableGw}
-            onSelectGw={handleSelectPlayersGw}
-          />
         )}
       </main>
 
