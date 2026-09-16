@@ -27,6 +27,8 @@ interface ManagerState {
   managerName: string;
   teamName: string;
   cumulativeNetPoints: number;
+  prevCumulativePoints: number;
+  gwNetPoints: number;
   currentRank: number;
   prevRank: number;
   color: string;
@@ -62,6 +64,57 @@ const SPEED_CONFIG: Record<
   2: { intervalMs: 1200, transitionDuration: "1100ms" },
 };
 
+interface AnimatedCounterProps {
+  value: number;
+  durationMs: number;
+}
+
+const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
+  value,
+  durationMs,
+}) => {
+  const [displayValue, setDisplayValue] = useState<number>(value);
+  const prevValueRef = useRef<number>(value);
+
+  useEffect(() => {
+    const startVal = prevValueRef.current;
+    const endVal = value;
+    prevValueRef.current = value;
+
+    if (startVal === endVal) {
+      setDisplayValue(endVal);
+      return;
+    }
+
+    const startTime = performance.now();
+    let animId: number;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / Math.max(durationMs, 1), 1);
+      // Smooth continuous ease curve
+      const ease =
+        progress < 0.5
+          ? 2 * progress * progress
+          : -1 + (4 - 2 * progress) * progress;
+
+      const current = Math.round(startVal + (endVal - startVal) * ease);
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animId = requestAnimationFrame(tick);
+      } else {
+        setDisplayValue(endVal);
+      }
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, [value, durationMs]);
+
+  return <>{displayValue}</>;
+};
+
 export const BarChartRace: React.FC<BarChartRaceProps> = ({
   profiles,
   maxGw,
@@ -85,15 +138,25 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
       managerName: string;
       teamName: string;
       cumulativeNetPoints: number;
+      prevCumulativePoints: number;
+      gwNetPoints: number;
       color: string;
     }[] = [];
 
     (profiles || []).forEach((p, idx) => {
       let cumulativeNet = 0;
+      let prevCumulativeNet = 0;
+      let gwPoints = 0;
       const history = p.history || [];
       for (const h of history) {
         if (h.gameweek <= targetGw) {
           cumulativeNet += h.net_points ?? 0;
+        }
+        if (h.gameweek < targetGw) {
+          prevCumulativeNet += h.net_points ?? 0;
+        }
+        if (h.gameweek === targetGw) {
+          gwPoints = h.net_points ?? 0;
         }
       }
       list.push({
@@ -101,6 +164,8 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         managerName: p.player_name || "Manager",
         teamName: p.entry_name || "Squad",
         cumulativeNetPoints: cumulativeNet,
+        prevCumulativePoints: prevCumulativeNet,
+        gwNetPoints: gwPoints,
         color: TRAIL_COLORS[idx % TRAIL_COLORS.length],
       });
     });
@@ -158,6 +223,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
 
   const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
   const transitionDuration = currentSpeedConfig.transitionDuration;
+  const durationMs = parseInt(transitionDuration, 10) || 2000;
 
   const containerHeight =
     (profiles?.length || currentStandings.length) * STEP;
@@ -299,7 +365,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     }
                     style={{
                       borderColor: isFocused ? color : undefined,
-                      boxShadow: isFocused ? `0 0 14px ${color}50` : undefined,
+                      boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       isFocused
@@ -405,7 +471,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                       : undefined,
                     transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
                   }}
-                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-3 backdrop-blur-md cursor-pointer will-change-transform ${
+                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md cursor-pointer will-change-transform ${
                     isLeader
                       ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90"
                       : isFocused
@@ -414,7 +480,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   }`}
                 >
                   {/* Rank Position Badge */}
-                  <div className="w-8 shrink-0 flex items-center justify-center">
+                  <div className="w-7 sm:w-8 shrink-0 flex items-center justify-center">
                     <span
                       className={`w-7 h-7 rounded-xl text-xs font-black flex items-center justify-center transition-colors duration-300 ${
                         isLeader
@@ -433,7 +499,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   </div>
 
                   {/* Manager & Team Name Label with Signature Color Indicator */}
-                  <div className="w-28 sm:w-44 shrink-0 truncate flex items-center gap-2">
+                  <div className="w-28 sm:w-40 shrink-0 truncate flex items-center gap-2">
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                       style={{ backgroundColor: m.color }}
@@ -448,7 +514,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                     </div>
                   </div>
 
-                  {/* Animated Progress Bar */}
+                  {/* Animated Progress Bar with Counting Up Net Points */}
                   <div className="flex-1 h-9 rounded-xl bg-slate-900/90 border border-slate-800/80 p-1 flex items-center relative overflow-hidden">
                     <div
                       style={{
@@ -471,13 +537,29 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                           isFocused ? "text-slate-950" : "text-white"
                         }`}
                       >
-                        {m.cumulativeNetPoints} pts
+                        <AnimatedCounter
+                          value={m.cumulativeNetPoints}
+                          durationMs={durationMs}
+                        /> pts
                       </span>
                     </div>
                   </div>
 
+                  {/* Gameweek Points Scored Animated Pill Badge */}
+                  <div className="shrink-0 flex items-center min-w-[50px] sm:min-w-[65px] justify-end">
+                    <div
+                      key={`gw-score-${m.managerId}-gw-${currentGw}`}
+                      className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500"
+                      title={`Scored +${m.gwNetPoints} net points in Gameweek ${currentGw}`}
+                    >
+                      <Sparkles className="h-2.5 w-2.5 text-emerald-400 shrink-0 hidden sm:inline" />
+                      <span className="tabular-nums">+{m.gwNetPoints}</span>
+                      <span className="text-[9px] text-emerald-500/70 uppercase tracking-tighter hidden md:inline">gw</span>
+                    </div>
+                  </div>
+
                   {/* Weekly Delta Badge */}
-                  <div className="w-14 shrink-0 text-right">
+                  <div className="w-11 sm:w-12 shrink-0 text-right">
                     {rankDelta > 0 ? (
                       <span className="inline-flex items-center text-[11px] font-black text-emerald-400 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
                         <TrendingUp className="h-3 w-3 mr-0.5" />
