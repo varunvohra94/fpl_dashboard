@@ -13,6 +13,7 @@ import {
   BarChart2,
   GitCommit,
   Crosshair,
+  Sliders,
 } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 import { RankTrajectoryChart } from "./RankTrajectoryChart";
@@ -242,6 +243,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
     ...currentStandings.map((s) => s.cumulativeNetPoints),
     1
   );
+  const safeMaxGw = Math.max(maxGw, 1);
 
   const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
   const transitionDuration = currentSpeedConfig.transitionDuration;
@@ -633,29 +635,149 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
           </div>
         )}
 
-        {/* Gameweek Scrubber Slider (Positioned at the BOTTOM of the visualization) */}
+        {/* Segmented Gameweek Scrubber Slider (Positioned at the BOTTOM of the visualization) */}
         <div className="pt-4 border-t border-slate-800/80">
-          <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2.5">
-              <span className="text-slate-500 font-semibold">Start (0 pts)</span>
-              <span className="text-emerald-400 font-black text-sm px-3.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                {currentGw === 0
-                  ? "Pre-Season Baseline (0 pts)"
-                  : `Gameweek ${currentGw}`}
-              </span>
-              <span>GW {maxGw}</span>
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner space-y-3.5">
+            {/* Header info row above slider */}
+            <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+              <div className="flex items-center gap-2">
+                <Sliders className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Timeline Scrubber
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-emerald-400 font-black text-xs sm:text-sm px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-sm inline-flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {currentGw === 0 ? (
+                    <>
+                      <span>Pre-Season Baseline</span>
+                      <span className="text-slate-500 font-normal text-[11px]">
+                        (0 pts)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Gameweek {currentGw}</span>
+                      <span className="text-slate-500 font-normal text-[11px]">
+                        of {safeMaxGw}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={Math.max(maxGw, 1)}
-              value={currentGw}
-              onChange={(e) => {
-                setIsPlaying(false);
-                setCurrentGw(Number(e.target.value));
-              }}
-              className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-            />
+
+            {/* Segmented Track & Custom Slider */}
+            <div className="relative py-1.5 flex items-center">
+              {/* Background Track with Segments */}
+              <div className="h-3 w-full bg-slate-900 border border-slate-800 rounded-full relative overflow-visible shadow-inner flex items-center">
+                {/* Active Progress Fill */}
+                <div
+                  style={{
+                    width: `${safeMaxGw > 0 ? (currentGw / safeMaxGw) * 100 : 0}%`,
+                    transition: isPlaying
+                      ? `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`
+                      : "width 150ms ease",
+                  }}
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/25"
+                />
+
+                {/* Notches / Tick dots along the track */}
+                {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+                  const leftPercent = (gw / safeMaxGw) * 100;
+                  const isPassed = gw <= currentGw;
+                  const isCurrent = gw === currentGw;
+
+                  return (
+                    <div
+                      key={`track-tick-${gw}`}
+                      style={{ left: `${leftPercent}%` }}
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                    >
+                      <div
+                        className={`rounded-full transition-all duration-300 ${
+                          isCurrent
+                            ? "w-4.5 h-4.5 bg-emerald-300 border-2 border-slate-950 shadow-lg shadow-emerald-400/50 scale-110"
+                            : isPassed
+                            ? "w-2.5 h-2.5 bg-emerald-400 border border-slate-950"
+                            : "w-2 h-2 bg-slate-700 border border-slate-900"
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Invisible Interactive Range Input overlay */}
+              <input
+                type="range"
+                min={0}
+                max={safeMaxGw}
+                step={1}
+                value={currentGw}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  setCurrentGw(Number(e.target.value));
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                title={
+                  currentGw === 0
+                    ? "Pre-Season Baseline (0 pts)"
+                    : `Gameweek ${currentGw}`
+                }
+              />
+            </div>
+
+            {/* Gameweek Markers Row (Positioned BELOW the slider) */}
+            <div className="relative w-full pt-1">
+              <div className="flex items-stretch justify-between gap-1 sm:gap-2">
+                {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+                  const isCurrent = gw === currentGw;
+                  const isPassed = gw < currentGw;
+
+                  return (
+                    <button
+                      key={`gw-marker-btn-${gw}`}
+                      onClick={() => {
+                        setIsPlaying(false);
+                        setCurrentGw(gw);
+                      }}
+                      className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${
+                        isCurrent
+                          ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
+                          : isPassed
+                          ? "bg-slate-900/90 border-slate-800/90 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800/60"
+                          : "bg-slate-950/50 border-slate-900/80 text-slate-600 hover:border-slate-800 hover:text-slate-400"
+                      }`}
+                    >
+                      <span
+                        className={`text-xs sm:text-sm font-black leading-tight ${
+                          isCurrent
+                            ? "text-emerald-300"
+                            : isPassed
+                            ? "text-slate-200"
+                            : "text-slate-500"
+                        }`}
+                      >
+                        {gw === 0 ? "Start" : `GW ${gw}`}
+                      </span>
+                      <span
+                        className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${
+                          isCurrent
+                            ? "text-emerald-400/90"
+                            : isPassed
+                            ? "text-slate-400"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {gw === 0 ? "0 pts" : `Round ${gw}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
