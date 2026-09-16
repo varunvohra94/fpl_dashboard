@@ -119,7 +119,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   profiles,
   maxGw,
 }) => {
-  const [currentGw, setCurrentGw] = useState(1);
+  const [currentGw, setCurrentGw] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1); // 0.5x, 1x, 2x
   const [vizMode, setVizMode] = useState<VizMode>("trail"); // Default: Trail Graph
@@ -131,8 +131,30 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
   );
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Compute cumulative standings for all managers at a specific gameweek
+  // Compute cumulative standings for all managers at a specific gameweek (0 = Pre-Season Baseline)
   const getRankedStatesForGw = (targetGw: number): ManagerState[] => {
+    if (targetGw === 0) {
+      // Pre-Season Alphabetical Starting Baseline (0 points for all)
+      const alphabetical = [...(profiles || [])].sort((a, b) =>
+        (a.player_name || "").localeCompare(b.player_name || "")
+      );
+      return alphabetical.map((p, idx) => {
+        const colorIdx = (profiles || []).findIndex((orig) => orig.id === p.id);
+        return {
+          managerId: p.id,
+          managerName: p.player_name || "Manager",
+          teamName: p.entry_name || "Squad",
+          cumulativeNetPoints: 0,
+          prevCumulativePoints: 0,
+          gwNetPoints: 0,
+          currentRank: idx + 1,
+          prevRank: idx + 1,
+          color:
+            TRAIL_COLORS[(colorIdx >= 0 ? colorIdx : idx) % TRAIL_COLORS.length],
+        };
+      });
+    }
+
     const list: {
       managerId: number;
       managerName: string;
@@ -177,9 +199,9 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         a.managerId - b.managerId
     );
 
-    // Compute previous rank (at targetGw - 1)
+    // Compute previous rank (at targetGw - 1, which for GW1 is GW0 alphabetical rank)
     const prevMap: Record<number, number> = {};
-    if (targetGw > 1) {
+    if (targetGw >= 1) {
       const prevList = getRankedStatesForGw(targetGw - 1);
       prevList.forEach((item) => {
         prevMap[item.managerId] = item.currentRank;
@@ -243,7 +265,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                 Interactive Mini-League Analytics
               </span>
               <span className="text-xs text-slate-400 font-semibold">
-                Gameweek {currentGw} of {maxGw}
+                Gameweek {currentGw === 0 ? "0 (Baseline)" : currentGw} of {maxGw}
               </span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
@@ -291,7 +313,7 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             {/* Play / Pause */}
             <button
               onClick={() => {
-                if (currentGw >= maxGw) setCurrentGw(1);
+                if (currentGw >= maxGw) setCurrentGw(0);
                 setIsPlaying(!isPlaying);
               }}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
@@ -313,9 +335,9 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
             <button
               onClick={() => {
                 setIsPlaying(false);
-                setCurrentGw(1);
+                setCurrentGw(0);
               }}
-              title="Reset to Gameweek 1"
+              title="Reset to Pre-Season Baseline (0 pts)"
               className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               <RotateCcw className="h-4 w-4" />
@@ -428,10 +450,10 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               if (!m) return null;
 
               const topPosition = (m.currentRank - 1) * STEP;
-              const percentage = Math.max(
-                16,
-                (m.cumulativeNetPoints / maxPoints) * 100
-              );
+              const percentage =
+                currentGw === 0 || maxPoints === 0
+                  ? 14
+                  : Math.max(14, (m.cumulativeNetPoints / maxPoints) * 100);
               const rankDelta = m.prevRank - m.currentRank;
               const isLeader = m.currentRank === 1;
               const isFocused = activeFocusId === m.managerId;
@@ -554,18 +576,41 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   <div className="shrink-0 flex items-center min-w-[50px] sm:min-w-[65px] justify-end">
                     <div
                       key={`gw-score-${m.managerId}-gw-${currentGw}`}
-                      className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500"
-                      title={`Scored +${m.gwNetPoints} net points in Gameweek ${currentGw}`}
+                      className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500 ${
+                        currentGw === 0
+                          ? "bg-slate-800/40 text-slate-500 border-slate-800"
+                          : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                      }`}
+                      title={
+                        currentGw === 0
+                          ? "Pre-Season Baseline (0 points)"
+                          : `Scored +${m.gwNetPoints} net points in Gameweek ${currentGw}`
+                      }
                     >
-                      <Sparkles className="h-2.5 w-2.5 text-emerald-400 shrink-0 hidden sm:inline" />
-                      <span className="tabular-nums">+{m.gwNetPoints}</span>
-                      <span className="text-[9px] text-emerald-500/70 uppercase tracking-tighter hidden md:inline">gw</span>
+                      {currentGw > 0 && (
+                        <Sparkles className="h-2.5 w-2.5 text-emerald-400 shrink-0 hidden sm:inline" />
+                      )}
+                      <span className="tabular-nums">
+                        {currentGw === 0 ? "0" : `+${m.gwNetPoints}`}
+                      </span>
+                      <span
+                        className={`text-[9px] uppercase tracking-tighter hidden md:inline ${
+                          currentGw === 0 ? "text-slate-600" : "text-emerald-500/70"
+                        }`}
+                      >
+                        {currentGw === 0 ? "pts" : "gw"}
+                      </span>
                     </div>
                   </div>
 
                   {/* Weekly Delta Badge */}
                   <div className="w-11 sm:w-12 shrink-0 text-right">
-                    {rankDelta > 0 ? (
+                    {currentGw === 0 ? (
+                      <span className="inline-flex items-center text-[11px] text-slate-600 font-bold px-1.5 py-0.5">
+                        <Minus className="h-3 w-3 mr-0.5" />
+                        0
+                      </span>
+                    ) : rankDelta > 0 ? (
                       <span className="inline-flex items-center text-[11px] font-black text-emerald-400 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
                         <TrendingUp className="h-3 w-3 mr-0.5" />
                         +{rankDelta}
@@ -592,15 +637,17 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         <div className="pt-4 border-t border-slate-800/80">
           <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner">
             <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2.5">
-              <span>GW 1</span>
+              <span className="text-slate-500 font-semibold">Start (0 pts)</span>
               <span className="text-emerald-400 font-black text-sm px-3.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                Gameweek {currentGw}
+                {currentGw === 0
+                  ? "Pre-Season Baseline (0 pts)"
+                  : `Gameweek ${currentGw}`}
               </span>
               <span>GW {maxGw}</span>
             </div>
             <input
               type="range"
-              min={1}
+              min={0}
               max={Math.max(maxGw, 1)}
               value={currentGw}
               onChange={(e) => {

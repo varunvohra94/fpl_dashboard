@@ -53,9 +53,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   const totalManagers = profiles.length;
   const safeMaxGw = Math.max(maxGw, 1);
-  const gameweeks = Array.from({ length: safeMaxGw }, (_, i) => i + 1);
+  const gameweeks = Array.from({ length: safeMaxGw + 1 }, (_, i) => i); // [0, 1, 2, ..., safeMaxGw]
 
-  // 1. Calculate cumulative net points and mini-league rank for EVERY manager at EVERY gameweek
+  // 1. Calculate cumulative net points and mini-league rank for EVERY manager at EVERY gameweek (starting from GW 0)
   const trajectoryMap: Record<
     number,
     Record<number, { rank: number; points: number; cumNet: number }>
@@ -65,6 +65,19 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     trajectoryMap[p.id] = {};
   });
 
+  // GW 0: Pre-Season Alphabetical Starting Baseline (0 points for all)
+  const alphabeticalProfiles = [...profiles].sort((a, b) =>
+    (a.player_name || "").localeCompare(b.player_name || "")
+  );
+  alphabeticalProfiles.forEach((p, idx) => {
+    trajectoryMap[p.id][0] = {
+      rank: idx + 1,
+      points: 0,
+      cumNet: 0,
+    };
+  });
+
+  // GW 1 to safeMaxGw: Actual season trajectory
   for (let gw = 1; gw <= safeMaxGw; gw++) {
     const gwRankings: { managerId: number; cumNet: number; gwPoints: number }[] = [];
 
@@ -103,14 +116,14 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   // 2. SVG Dimensions and Coordinates
   const svgWidth = 860;
   const svgHeight = Math.max(300, totalManagers * 40 + 40);
-  const padding = { top: 35, right: 150, bottom: 45, left: 50 };
+  const padding = { top: 35, right: 150, bottom: 45, left: 60 };
   const graphWidth = svgWidth - padding.left - padding.right;
   const graphHeight = svgHeight - padding.top - padding.bottom;
 
   // Coordinate mappers
   const getX = (gw: number) => {
-    if (safeMaxGw <= 1) return padding.left + graphWidth / 2;
-    return padding.left + ((gw - 1) / (safeMaxGw - 1)) * graphWidth;
+    if (safeMaxGw < 1) return padding.left;
+    return padding.left + (gw / safeMaxGw) * graphWidth;
   };
 
   const getY = (rank: number) => {
@@ -118,10 +131,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return padding.top + ((rank - 1) / (totalManagers - 1)) * graphHeight;
   };
 
-  // Generate full season smooth cubic bezier SVG path (1 to safeMaxGw)
+  // Generate full season smooth cubic bezier SVG path (0 to safeMaxGw)
   const generateFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
-    for (let gw = 1; gw <= safeMaxGw; gw++) {
+    for (let gw = 0; gw <= safeMaxGw; gw++) {
       const data = trajectoryMap[managerId]?.[gw];
       if (data) {
         points.push({ x: getX(gw), y: getY(data.rank) });
@@ -142,8 +155,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   };
 
   // Calculate continuous stroke dashoffset (out of pathLength 1000)
-  const progressRatio =
-    safeMaxGw > 1 ? (currentGw - 1) / (safeMaxGw - 1) : 1;
+  const progressRatio = safeMaxGw > 0 ? currentGw / safeMaxGw : 0;
   const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
 
   const activeFocusId = selectedManagerId || hoveredManagerId;
@@ -290,7 +302,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   fontSize="11"
                   fontWeight={isCurrent ? "900" : "700"}
                 >
-                  GW {gw}
+                  {gw === 0 ? "Start" : `GW ${gw}`}
                 </text>
               </g>
             );
@@ -394,7 +406,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                           gameweek: gw,
                           rank: data.rank,
                           prevRank:
-                            gw > 1
+                            gw > 0
                               ? trajectoryMap[p.id]?.[gw - 1]?.rank
                               : undefined,
                           gwPoints: data.points,
@@ -439,7 +451,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         gameweek: currentGw,
                         rank: currentData.rank,
                         prevRank:
-                          currentGw > 1
+                          currentGw > 0
                             ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
                             : undefined,
                         gwPoints: currentData.points,
@@ -559,7 +571,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
               <div>
                 <span className="text-slate-400 block text-[9px] uppercase font-bold">
-                  GW {tooltip.gameweek} Rank
+                  {tooltip.gameweek === 0 ? "Baseline Rank" : `GW ${tooltip.gameweek} Rank`}
                 </span>
                 <span
                   className="font-black text-sm"
@@ -576,7 +588,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
               <div>
                 <span className="text-slate-400 block text-[9px] uppercase font-bold">
-                  GW {tooltip.gameweek} Net Score
+                  {tooltip.gameweek === 0 ? "Pre-Season Net" : `GW ${tooltip.gameweek} Net Score`}
                 </span>
                 <span className="font-black text-white text-sm">
                   {tooltip.gwPoints}{" "}
