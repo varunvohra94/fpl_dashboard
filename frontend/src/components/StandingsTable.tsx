@@ -122,7 +122,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
 
   return (
-    <div className="h-full flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
+    <div className="flex flex-col rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl">
       {/* Table Header Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -188,20 +188,20 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
       </div>
 
       {/* Table */}
-      <div className="flex-1 min-h-0 overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full text-left text-xs min-w-[700px]">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <th
                 onClick={() => handleSort("league_rank")}
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
                   <span>League Rank</span>
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </th>
-              <th className="py-3.5 px-4">Manager / Team</th>
+              <th className="py-2.5 px-3.5">Manager / Team</th>
 
               {/* Main Net Points Column */}
               <th
@@ -210,7 +210,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     viewScope === "season" ? "total_net_points" : "net_points"
                   )
                 }
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
                   <span>
@@ -225,7 +225,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               {/* Transfer Hits */}
               <th
                 onClick={() => handleSort("event_transfers_cost")}
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden md:table-cell"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors hidden md:table-cell"
               >
                 <div className="flex items-center gap-1">
                   <span>
@@ -240,7 +240,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               {/* Rolling 3-GW Form */}
               <th
                 onClick={() => handleSort("rolling_3_avg")}
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
               >
                 <div className="flex items-center gap-1">
                   <span>3-GW Form</span>
@@ -255,7 +255,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     viewScope === "season" ? "net_points" : "total_net_points"
                   )
                 }
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden sm:table-cell"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors hidden sm:table-cell"
               >
                 <div className="flex items-center gap-1">
                   <span>
@@ -270,7 +270,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               {/* Global FPL Rank */}
               <th
                 onClick={() => handleSort("overall_rank")}
-                className="py-3.5 px-4 cursor-pointer hover:text-white transition-colors hidden lg:table-cell"
+                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors hidden lg:table-cell"
               >
                 <div className="flex items-center gap-1">
                   <Globe className="h-3 w-3 text-slate-500" />
@@ -280,7 +280,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               </th>
 
               {/* Active Chip Badge Header */}
-              <th className="py-3.5 px-4 text-center w-36 min-w-[140px] hidden sm:table-cell">
+              <th className="py-2.5 px-3.5 text-center w-36 min-w-[140px] hidden sm:table-cell">
                 Chip
               </th>
             </tr>
@@ -288,7 +288,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           <tbody className="divide-y divide-slate-800/60 tabular-nums">
             {filteredStandings.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-12 text-center text-slate-500">
+                <td colSpan={8} className="py-10 text-center text-slate-500">
                   No rivals found matching your search.
                 </td>
               </tr>
@@ -308,10 +308,10 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     }`}
                   >
                     {/* Mini-League Sequential Rank (1..N) */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3.5">
                       <div className="flex items-center gap-2">
                         <span
-                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black transition-transform ${
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black transition-transform ${
                             isLeader
                               ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30 scale-105"
                               : m.league_rank <= 3
@@ -322,13 +322,13 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                           {m.league_rank}
                         </span>
                         {isLeader && (
-                          <Sparkles className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                          <Sparkles className="h-3 w-3 text-emerald-400 shrink-0" />
                         )}
                       </div>
                     </td>
 
                     {/* Manager & Team Name */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3.5">
                       <div className="truncate max-w-[140px] sm:max-w-[200px]">
                         <span className="font-extrabold text-white text-xs sm:text-sm block truncate group-hover:text-emerald-400">
                           {m.player_name || "Manager"}
@@ -340,14 +340,14 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </td>
 
                     {/* Primary Net Points Score (Cumulative or Single GW) */}
-                    <td className="py-3.5 px-4 font-black text-sm text-emerald-400">
+                    <td className="py-2.5 px-3.5 font-black text-sm text-emerald-400">
                       {viewScope === "season"
                         ? `${m.total_net_points ?? m.total_points ?? 0} pts`
                         : `${m.net_points ?? m.points ?? 0} pts`}
                     </td>
 
                     {/* Transfer Hits Deduction */}
-                    <td className="py-3.5 px-4 hidden md:table-cell">
+                    <td className="py-2.5 px-3.5 hidden md:table-cell">
                       {(m.event_transfers_cost ?? 0) > 0 ? (
                         <span className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
                           -{m.event_transfers_cost} pts
@@ -360,7 +360,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </td>
 
                     {/* Rolling 3-GW Form Indicator */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-2.5 px-3.5">
                       <span
                         className={`inline-flex items-center text-[11px] font-black px-2 py-0.5 rounded-lg border ${getFormColor(
                           m.rolling_3_avg
@@ -373,19 +373,19 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </td>
 
                     {/* Secondary Net Points */}
-                    <td className="py-3.5 px-4 text-slate-300 font-bold hidden sm:table-cell">
+                    <td className="py-2.5 px-3.5 text-slate-300 font-bold hidden sm:table-cell">
                       {viewScope === "season"
                         ? `${m.net_points ?? m.points ?? 0} pts`
                         : `${m.total_net_points ?? m.total_points ?? 0} pts`}
                     </td>
 
                     {/* Global FPL Overall Rank */}
-                    <td className="py-3.5 px-4 text-slate-400 text-xs hidden lg:table-cell font-medium">
+                    <td className="py-2.5 px-3.5 text-slate-400 text-xs hidden lg:table-cell font-medium">
                       {m.overall_rank ? `#${m.overall_rank.toLocaleString()}` : "-"}
                     </td>
 
                     {/* Active Chip Badge Cell */}
-                    <td className="py-3.5 px-4 text-center w-36 min-w-[140px] whitespace-nowrap hidden sm:table-cell">
+                    <td className="py-2.5 px-3.5 text-center w-36 min-w-[140px] whitespace-nowrap hidden sm:table-cell">
                       {chipInfo ? (
                         <span
                           className={`inline-flex items-center justify-center text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wide whitespace-nowrap shadow-sm leading-none ${chipInfo.color}`}

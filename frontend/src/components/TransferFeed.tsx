@@ -69,7 +69,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
   });
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md p-4 sm:p-5 shadow-2xl flex flex-col h-full">
+    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md p-4 sm:p-5 shadow-2xl flex flex-col h-full overflow-hidden max-h-[500px] lg:max-h-none">
       {/* Header & Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
         <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
       </div>
 
       {/* Feed List */}
-      <div className="mt-4 space-y-3 overflow-y-auto flex-1 min-h-0 pr-1">
+      <div className="mt-3.5 space-y-2.5 overflow-y-auto flex-1 min-h-0 pr-1">
         {filteredGroups.length === 0 ? (
           <div className="py-12 text-center text-slate-500 text-xs">
             No transfers recorded {selectedGw > 0 ? `for Gameweek ${selectedGw}` : ""} matching this filter.
