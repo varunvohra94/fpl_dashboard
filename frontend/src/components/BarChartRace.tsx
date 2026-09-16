@@ -244,6 +244,25 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
     1
   );
   const safeMaxGw = Math.max(maxGw, 1);
+  const isDenseMode = safeMaxGw <= 8;
+
+  // Adaptive milestone calculation for scaling across full 38-gameweek seasons
+  const getMilestones = (max: number): number[] => {
+    if (max <= 8) {
+      return Array.from({ length: max + 1 }, (_, i) => i);
+    }
+    const step = max <= 16 ? 2 : max <= 28 ? 4 : 5;
+    const milestones: number[] = [0];
+    for (let gw = step; gw < max; gw += step) {
+      milestones.push(gw);
+    }
+    if (!milestones.includes(max)) {
+      milestones.push(max);
+    }
+    return milestones;
+  };
+
+  const milestoneGws = getMilestones(safeMaxGw);
 
   const currentSpeedConfig = SPEED_CONFIG[speed] || SPEED_CONFIG[1];
   const transitionDuration = currentSpeedConfig.transitionDuration;
@@ -688,6 +707,25 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
                   const leftPercent = (gw / safeMaxGw) * 100;
                   const isPassed = gw <= currentGw;
                   const isCurrent = gw === currentGw;
+                  const isMilestone = !isDenseMode
+                    ? milestoneGws.includes(gw)
+                    : true;
+
+                  if (!isDenseMode && !isMilestone && !isCurrent) {
+                    return (
+                      <div
+                        key={`track-tick-${gw}`}
+                        style={{ left: `${leftPercent}%` }}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                      >
+                        <div
+                          className={`w-0.5 h-2 rounded-full ${
+                            isPassed ? "bg-emerald-400/50" : "bg-slate-700/80"
+                          }`}
+                        />
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
@@ -729,55 +767,131 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
               />
             </div>
 
-            {/* Gameweek Markers Row (Positioned BELOW the slider) */}
-            <div className="relative w-full pt-1">
-              <div className="flex items-stretch justify-between gap-1 sm:gap-2">
-                {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
-                  const isCurrent = gw === currentGw;
-                  const isPassed = gw < currentGw;
+            {/* Gameweek Markers / Milestone Ruler (Positioned BELOW the slider) */}
+            {!isDenseMode ? (
+              /* Milestone Ruler Mode for full season (safeMaxGw > 8) */
+              <div className="relative w-full pt-1 pb-1">
+                {/* Milestone Tick Labels */}
+                <div className="relative w-full h-9 flex items-center">
+                  {milestoneGws.map((gw) => {
+                    const leftPercent = (gw / safeMaxGw) * 100;
+                    const isCurrent = gw === currentGw;
+                    const isPassed = gw < currentGw;
 
-                  return (
-                    <button
-                      key={`gw-marker-btn-${gw}`}
-                      onClick={() => {
-                        setIsPlaying(false);
-                        setCurrentGw(gw);
-                      }}
-                      className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${
-                        isCurrent
-                          ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
-                          : isPassed
-                          ? "bg-slate-900/90 border-slate-800/90 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800/60"
-                          : "bg-slate-950/50 border-slate-900/80 text-slate-600 hover:border-slate-800 hover:text-slate-400"
-                      }`}
-                    >
-                      <span
-                        className={`text-xs sm:text-sm font-black leading-tight ${
-                          isCurrent
-                            ? "text-emerald-300"
-                            : isPassed
-                            ? "text-slate-200"
-                            : "text-slate-500"
+                    return (
+                      <button
+                        key={`ruler-milestone-${gw}`}
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setCurrentGw(gw);
+                        }}
+                        style={{
+                          left: `${leftPercent}%`,
+                          transform:
+                            gw === 0
+                              ? "translateX(0%)"
+                              : gw === safeMaxGw
+                              ? "translateX(-100%)"
+                              : "translateX(-50%)",
+                        }}
+                        className={`absolute top-0 flex flex-col items-center group cursor-pointer transition-all ${
+                          isCurrent ? "z-20 scale-105" : "z-10 hover:scale-105"
                         }`}
                       >
-                        {gw === 0 ? "Start" : `GW ${gw}`}
-                      </span>
-                      <span
-                        className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${
-                          isCurrent
-                            ? "text-emerald-400/90"
-                            : isPassed
-                            ? "text-slate-400"
-                            : "text-slate-600"
-                        }`}
-                      >
-                        {gw === 0 ? "0 pts" : `Round ${gw}`}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <div
+                          className={`w-0.5 h-2 rounded-full mb-1 transition-colors ${
+                            isCurrent
+                              ? "bg-emerald-400 h-2.5"
+                              : isPassed
+                              ? "bg-emerald-500/50"
+                              : "bg-slate-700 group-hover:bg-slate-500"
+                          }`}
+                        />
+                        <span
+                          className={`text-[10px] sm:text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded transition-colors ${
+                            isCurrent
+                              ? "text-emerald-300 font-black bg-emerald-500/10 border border-emerald-500/30"
+                              : isPassed
+                              ? "text-slate-300 group-hover:text-white"
+                              : "text-slate-500 group-hover:text-slate-300"
+                          }`}
+                        >
+                          {gw === 0 ? "Start" : `GW ${gw}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Floating Gliding Active Badge under the Slider Thumb */}
+                <div
+                  style={{
+                    left: `${(currentGw / safeMaxGw) * 100}%`,
+                    transition: isPlaying
+                      ? `left ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`
+                      : "left 150ms ease",
+                  }}
+                  className="absolute top-9 -translate-x-1/2 pointer-events-none z-30"
+                >
+                  <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-[10px] sm:text-xs shadow-lg shadow-emerald-500/30 border border-emerald-300 whitespace-nowrap">
+                    <Sparkles className="h-2.5 w-2.5 fill-current hidden sm:inline" />
+                    <span>
+                      {currentGw === 0 ? "Start (0 pts)" : `GW ${currentGw} Active`}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Dense Button Mode for early season (safeMaxGw <= 8) */
+              <div className="relative w-full pt-1">
+                <div className="flex items-stretch justify-between gap-1 sm:gap-2">
+                  {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+                    const isCurrent = gw === currentGw;
+                    const isPassed = gw < currentGw;
+
+                    return (
+                      <button
+                        key={`gw-marker-btn-${gw}`}
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setCurrentGw(gw);
+                        }}
+                        className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${
+                          isCurrent
+                            ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
+                            : isPassed
+                            ? "bg-slate-900/90 border-slate-800/90 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800/60"
+                            : "bg-slate-950/50 border-slate-900/80 text-slate-600 hover:border-slate-800 hover:text-slate-400"
+                        }`}
+                      >
+                        <span
+                          className={`text-xs sm:text-sm font-black leading-tight ${
+                            isCurrent
+                              ? "text-emerald-300"
+                              : isPassed
+                              ? "text-slate-200"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          {gw === 0 ? "Start" : `GW ${gw}`}
+                        </span>
+                        <span
+                          className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${
+                            isCurrent
+                              ? "text-emerald-400/90"
+                              : isPassed
+                              ? "text-slate-400"
+                              : "text-slate-600"
+                          }`}
+                        >
+                          {gw === 0 ? "0 pts" : `Round ${gw}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
