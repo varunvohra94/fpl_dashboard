@@ -99,7 +99,7 @@ export const HighlightsBanner: React.FC<HighlightsBannerProps> = ({
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Gameweek Intelligence & Rival Highlights
+            Season Highlights
           </h2>
         </div>
         <span className="text-xs text-slate-500 font-medium hidden sm:inline">
@@ -119,16 +119,16 @@ export const HighlightsBanner: React.FC<HighlightsBannerProps> = ({
             >
               {/* Card Header & Badge */}
               <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-xl ${theme.iconBg}`}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`p-2 rounded-xl shrink-0 ${theme.iconBg}`}>
                     {renderIcon(card.iconType)}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block whitespace-nowrap">
                       {card.title}
                     </span>
                     <span
-                      className={`inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full border ${theme.badgeBg}`}
+                      className={`inline-block mt-0.5 text-[10.5px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${theme.badgeBg}`}
                     >
                       {card.badgeText}
                     </span>
@@ -136,28 +136,31 @@ export const HighlightsBanner: React.FC<HighlightsBannerProps> = ({
                 </div>
 
                 {/* Big Stat Value */}
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span className={`text-xl font-black tabular-nums block ${theme.statColor}`}>
                     {card.statValue}
                   </span>
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 block whitespace-nowrap">
                     {card.statLabel}
                   </span>
                 </div>
               </div>
 
-              {/* Headline */}
-              <div className="my-2">
-                <p className="text-sm font-bold text-white leading-snug line-clamp-2">
+              {/* Headline & Description */}
+              <div
+                className="my-1.5"
+                title={`${card.headline} — ${card.subtext}`}
+              >
+                <p className="text-xs sm:text-sm font-bold text-white leading-tight truncate">
                   {card.headline}
                 </p>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-1">
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">
                   {card.subtext}
                 </p>
               </div>
 
               {/* Manager List / Tie Details */}
-              <div className="mt-3 pt-3 border-t border-slate-800/60">
+              <div className="mt-2.5 pt-2.5 border-t border-slate-800/60">
                 {isTied ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">

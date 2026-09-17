@@ -62,18 +62,21 @@ export const evalSeasonRecordHaul: CardEvaluator = (
 
   const isTied = holders.length > 1;
   const headline = isTied
-    ? `Tied Record: ${holders.map((h) => `${h.managerName} (GW${h.gw})`).join(", ")}`
-    : `${holders[0].managerName} scored ${maxScore} pts in GW${holders[0].gw}`;
+    ? "Joint Highest Gameweek Score"
+    : "Highest Single GW Score";
+  const subtext = isTied
+    ? `${holders.length} managers tied at ${maxScore} pts`
+    : `Achieved in Gameweek ${holders[0].gw}`;
 
   return {
     id: "season_record_haul",
-    title: "SEASON RECORD HAUL",
-    badgeText: isTied ? "🏆 Joint Record" : "🏆 Season High",
+    title: "RECORD HAUL",
+    badgeText: isTied ? "🏆 Joint High" : "🏆 Season High",
     accentColor: "emerald",
     headline,
-    subtext: "Highest single gameweek score recorded this season",
+    subtext,
     statValue: maxScore,
-    statLabel: "Points in Single GW",
+    statLabel: "GW Score",
     managers: holders.map((h) => ({
       managerName: h.managerName,
       teamName: h.teamName,
@@ -130,18 +133,19 @@ export const evalBenchRegrets: CardEvaluator = (
 
   const isTied = holders.length > 1;
   const headline = isTied
-    ? `Tied: ${holders.map((h) => h.managerName).join(" & ")} (${maxBenchPoints} pts each)`
-    : `${holders[0].managerName} has stranded ${maxBenchPoints} pts on the bench`;
+    ? "Joint Most Points Left on Bench"
+    : "Most Points Left on Bench";
+  const subtext = "Total bench points";
 
   return {
     id: "bench_regrets",
-    title: "BENCH REGRETS KING",
-    badgeText: isTied ? "🪑 Tied Benched" : "🪑 Stranded Pts",
+    title: "BENCH REGRETS",
+    badgeText: isTied ? "🪑 Joint Benched" : "🪑 Stranded Pts",
     accentColor: "amber",
     headline,
-    subtext: "Cumulative points left on the bench across all gameweeks",
+    subtext,
     statValue: maxBenchPoints,
-    statLabel: "Total Bench Points",
+    statLabel: "Bench Points",
     managers: holders.map((h) => ({
       managerName: h.managerName,
       teamName: h.teamName,
@@ -257,18 +261,19 @@ export const evalFormKing: CardEvaluator = (
 
   const isTied = holders.length > 1;
   const headline = isTied
-    ? `Joint Form Leaders: ${holders.map((h) => h.managerName).join(" & ")} (${maxForm.toFixed(1)} pts/gw)`
-    : `${holders[0].managerName} leads the league with ${maxForm.toFixed(1)} pts/gw form`;
+    ? "Joint Form Leaders"
+    : "Best 3-GW Form";
+  const subtext = "Last 3 gameweeks average";
 
   return {
     id: "in_form_manager",
-    title: "IN-FORM MANAGER",
-    badgeText: isTied ? "🔥 Joint In-Form" : "🔥 Hot Form",
+    title: "IN-FORM",
+    badgeText: isTied ? "🔥 Joint Leaders" : "🔥 Hot Form",
     accentColor: "purple",
     headline,
-    subtext: `Rolling 3-gameweek average form as of GW${selectedGw}`,
+    subtext,
     statValue: `${maxForm.toFixed(1)}`,
-    statLabel: "Pts / Gameweek",
+    statLabel: "Avg Pts / GW",
     managers: holders.map((h) => ({
       managerName: h.managerName,
       teamName: h.teamName,
