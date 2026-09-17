@@ -1,0 +1,895 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Crown,
+  Sparkles,
+  BarChart2,
+  GitCommit,
+  Crosshair,
+  Sliders,
+} from "lucide-react";
+import { ManagerProfileResponse } from "../lib/types";
+import { RankTrajectoryChart } from "./RankTrajectoryChart";
+
+interface BarChartRaceProps {
+  profiles: ManagerProfileResponse[];
+  maxGw: number;
+}
+
+interface ManagerState {
+  managerId: number;
+  managerName: string;
+  teamName: string;
+  cumulativeNetPoints: number;
+  prevCumulativePoints: number;
+  gwNetPoints: number;
+  currentRank: number;
+  prevRank: number;
+  color: string;
+}
+
+type VizMode = "trail" | "bars";
+
+const ROW_HEIGHT = 60;
+const ROW_GAP = 12;
+const STEP = ROW_HEIGHT + ROW_GAP;
+
+const TRAIL_COLORS = [
+  "#00FF87", // Premier League Emerald
+  "#00E5FF", // Neon Cyan
+  "#A855F7", // Electric Purple
+  "#FF3366", // Neon Rose
+  "#FFB800", // Amber Gold
+  "#3B82F6", // Vivid Blue
+  "#10B981", // Teal
+  "#EC4899", // Magenta Pink
+  "#F97316", // Coral Orange
+  "#6366F1", // Indigo
+  "#14B8A6", // Mint
+  "#E11D48", // Crimson
+];
+
+const PLAYBACK_INTERVAL_MS = 2200;
+const TRANSITION_DURATION = "2000ms";
+const DURATION_MS = 2000;
+
+interface AnimatedCounterProps {
+  value: number;
+  durationMs: number;
+}
+
+const AnimatedCounter: React.FC<AnimatedCounterProps> = ({
+  value,
+  durationMs,
+}) => {
+  const [displayValue, setDisplayValue] = useState<number>(value);
+  const prevValueRef = useRef<number>(value);
+
+  useEffect(() => {
+    const startVal = prevValueRef.current;
+    const endVal = value;
+    prevValueRef.current = value;
+
+    if (startVal === endVal) {
+      setDisplayValue(endVal);
+      return;
+    }
+
+    const startTime = performance.now();
+    let animId: number;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / Math.max(durationMs, 1), 1);
+      // Smooth continuous ease curve
+      const ease =
+        progress < 0.5
+          ? 2 * progress * progress
+          : -1 + (4 - 2 * progress) * progress;
+
+      const current = Math.round(startVal + (endVal - startVal) * ease);
+      setDisplayValue(current);
+
+      if (progress < 1) {
+        animId = requestAnimationFrame(tick);
+      } else {
+        setDisplayValue(endVal);
+      }
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, [value, durationMs]);
+
+  return <>{displayValue}</>;
+};
+
+export const BarChartRace: React.FC<BarChartRaceProps> = ({
+  profiles,
+  maxGw,
+}) => {
+  const [currentGw, setCurrentGw] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [vizMode, setVizMode] = useState<VizMode>("trail"); // Default: Trail Graph
+  const [spotlightManagerId, setSpotlightManagerId] = useState<number | null>(
+    null
+  );
+  const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(
+    null
+  );
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Compute cumulative standings for all managers at a specific gameweek (0 = Pre-Season Baseline)
+  const getRankedStatesForGw = (targetGw: number): ManagerState[] => {
+    if (targetGw === 0) {
+      // Pre-Season Alphabetical Starting Baseline (0 points for all)
+      const alphabetical = [...(profiles || [])].sort((a, b) =>
+        (a.player_name || "").localeCompare(b.player_name || "")
+      );
+      return alphabetical.map((p, idx) => {
+        const colorIdx = (profiles || []).findIndex((orig) => orig.id === p.id);
+        return {
+          managerId: p.id,
+          managerName: p.player_name || "Manager",
+          teamName: p.entry_name || "Squad",
+          cumulativeNetPoints: 0,
+          prevCumulativePoints: 0,
+          gwNetPoints: 0,
+          currentRank: idx + 1,
+          prevRank: idx + 1,
+          color:
+            TRAIL_COLORS[(colorIdx >= 0 ? colorIdx : idx) % TRAIL_COLORS.length],
+        };
+      });
+    }
+
+    const list: {
+      managerId: number;
+      managerName: string;
+      teamName: string;
+      cumulativeNetPoints: number;
+      prevCumulativePoints: number;
+      gwNetPoints: number;
+      color: string;
+    }[] = [];
+
+    (profiles || []).forEach((p, idx) => {
+      let cumulativeNet = 0;
+      let prevCumulativeNet = 0;
+      let gwPoints = 0;
+      const history = p.history || [];
+      for (const h of history) {
+        if (h.gameweek <= targetGw) {
+          cumulativeNet += h.net_points ?? 0;
+        }
+        if (h.gameweek < targetGw) {
+          prevCumulativeNet += h.net_points ?? 0;
+        }
+        if (h.gameweek === targetGw) {
+          gwPoints = h.net_points ?? 0;
+        }
+      }
+      list.push({
+        managerId: p.id,
+        managerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
+        cumulativeNetPoints: cumulativeNet,
+        prevCumulativePoints: prevCumulativeNet,
+        gwNetPoints: gwPoints,
+        color: TRAIL_COLORS[idx % TRAIL_COLORS.length],
+      });
+    });
+
+    // Sort by cumulative points descending (and ID as deterministic tiebreaker)
+    list.sort(
+      (a, b) =>
+        b.cumulativeNetPoints - a.cumulativeNetPoints ||
+        a.managerId - b.managerId
+    );
+
+    // Compute previous rank (at targetGw - 1, which for GW1 is GW0 alphabetical rank)
+    const prevMap: Record<number, number> = {};
+    if (targetGw >= 1) {
+      const prevList = getRankedStatesForGw(targetGw - 1);
+      prevList.forEach((item) => {
+        prevMap[item.managerId] = item.currentRank;
+      });
+    }
+
+    return list.map((item, idx) => ({
+      ...item,
+      currentRank: idx + 1,
+      prevRank: prevMap[item.managerId] || idx + 1,
+    }));
+  };
+
+  // Playback timer loop
+  useEffect(() => {
+    if (isPlaying) {
+      timerRef.current = setInterval(() => {
+        setCurrentGw((prev) => {
+          if (prev >= maxGw) {
+            setIsPlaying(false);
+            return maxGw;
+          }
+          return prev + 1;
+        });
+      }, PLAYBACK_INTERVAL_MS);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPlaying, maxGw]);
+
+  const currentStandings = getRankedStatesForGw(currentGw);
+  const maxPoints = Math.max(
+    ...currentStandings.map((s) => s.cumulativeNetPoints),
+    1
+  );
+  const safeMaxGw = Math.max(maxGw, 1);
+  const isDenseMode = safeMaxGw <= 8;
+
+  // Adaptive milestone calculation for scaling across full 38-gameweek seasons
+  const getMilestones = (max: number): number[] => {
+    if (max <= 8) {
+      return Array.from({ length: max + 1 }, (_, i) => i);
+    }
+    const step = max <= 16 ? 2 : max <= 28 ? 4 : 5;
+    const milestones: number[] = [0];
+    for (let gw = step; gw < max; gw += step) {
+      milestones.push(gw);
+    }
+    if (!milestones.includes(max)) {
+      milestones.push(max);
+    }
+    return milestones;
+  };
+
+  const milestoneGws = getMilestones(safeMaxGw);
+
+  const transitionDuration = TRANSITION_DURATION;
+  const durationMs = DURATION_MS;
+
+  const containerHeight =
+    (profiles?.length || currentStandings.length) * STEP;
+
+  const activeFocusId = spotlightManagerId || hoveredManagerId;
+
+  return (
+    <div className="space-y-6">
+      {/* Analytics Master Unified Card */}
+      <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-5 sm:p-7 shadow-2xl overflow-hidden space-y-6">
+        {/* Top Header & Controls */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-800/80">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                FPL Showdown
+              </span>
+              <span className="text-xs text-slate-400 font-semibold">
+                Gameweek {currentGw === 0 ? "0 (Baseline)" : currentGw} of {maxGw}
+              </span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-white mt-1">
+              {vizMode === "trail"
+                ? "GW Rank Trajectory"
+                : "GW Rank Progression Race"}
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {vizMode === "trail"
+                ? "Rank movements and positions"
+                : "Points and position race"}
+            </p>
+          </div>
+
+          {/* Controls: View Switcher and Playback */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Switcher: Trail Graph (Default) vs Bar Race */}
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              <button
+                onClick={() => setVizMode("trail")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${vizMode === "trail"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+                  }`}
+                title="Gameweek Rank Trajectory Trail Graph"
+              >
+                <GitCommit className="h-3.5 w-3.5" />
+                <span>Trail Graph</span>
+              </button>
+              <button
+                onClick={() => setVizMode("bars")}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${vizMode === "bars"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+                  }`}
+                title="Bar Chart Race"
+              >
+                <BarChart2 className="h-3.5 w-3.5" />
+                <span>Bar Race</span>
+              </button>
+            </div>
+
+            {/* Play / Pause */}
+            <button
+              onClick={() => {
+                if (currentGw >= maxGw) setCurrentGw(0);
+                setIsPlaying(!isPlaying);
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              {isPlaying ? (
+                <>
+                  <Pause className="h-4 w-4 fill-current" />
+                  <span>PAUSE</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>{currentGw >= maxGw ? "REPLAY RACE" : "PLAY RACE"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Reset Button */}
+            <button
+              onClick={() => {
+                setIsPlaying(false);
+                setCurrentGw(0);
+              }}
+              title="Reset to Pre-Season Baseline (0 pts)"
+              className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Manager Spotlight Legend (Available for Bar Race to follow your name easily) */}
+        {vizMode === "bars" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 pb-2">
+            <div className="flex flex-wrap gap-2">
+              {profiles.map((p, idx) => {
+                const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+                const isFocused = activeFocusId === p.id;
+                const isDimmed = activeFocusId !== null && !isFocused;
+                const standing = currentStandings.find(
+                  (s) => s.managerId === p.id
+                );
+                const currentRank = standing?.currentRank || idx + 1;
+
+                return (
+                  <button
+                    key={p.id}
+                    onMouseEnter={() => setHoveredManagerId(p.id)}
+                    onMouseLeave={() => setHoveredManagerId(null)}
+                    onClick={() =>
+                      setSpotlightManagerId(
+                        spotlightManagerId === p.id ? null : p.id
+                      )
+                    }
+                    style={{
+                      borderColor: isFocused ? color : undefined,
+                      boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${isFocused
+                      ? "bg-slate-800 text-white"
+                      : isDimmed
+                        ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
+                        : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
+                      }`}
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="truncate max-w-[110px]">
+                      {p.player_name}
+                    </span>
+                    <span
+                      className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: `${color}20`,
+                        color: color,
+                      }}
+                    >
+                      #{currentRank}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {activeFocusId && (
+              <button
+                onClick={() => {
+                  setSpotlightManagerId(null);
+                  setHoveredManagerId(null);
+                }}
+                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer shadow-sm shrink-0"
+              >
+                Clear Spotlight
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Main Content Area: Trail Graph or Bar Race */}
+        {vizMode === "trail" ? (
+          <RankTrajectoryChart
+            profiles={profiles}
+            currentGw={currentGw}
+            maxGw={maxGw}
+            transitionDuration={transitionDuration}
+          />
+        ) : (
+          <div
+            className="relative w-full"
+            style={{ height: `${containerHeight}px` }}
+          >
+            {profiles.map((p) => {
+              const m = currentStandings.find((s) => s.managerId === p.id);
+              if (!m) return null;
+
+              const topPosition = (m.currentRank - 1) * STEP;
+              const percentage =
+                currentGw === 0 || maxPoints === 0
+                  ? 14
+                  : Math.max(14, (m.cumulativeNetPoints / maxPoints) * 100);
+              const rankDelta = m.prevRank - m.currentRank;
+              const isLeader = m.currentRank === 1;
+              const isFocused = activeFocusId === m.managerId;
+              const isDimmed = activeFocusId !== null && !isFocused;
+
+              // Silky smooth layering when cards pass each other
+              const zIndex = isFocused
+                ? 90
+                : isLeader
+                  ? 50
+                  : rankDelta > 0
+                    ? 35 // Rising cards glide on top
+                    : rankDelta < 0
+                      ? 25 // Dropping cards glide underneath smoothly
+                      : 20;
+
+              return (
+                <div
+                  key={m.managerId}
+                  onClick={() =>
+                    setSpotlightManagerId(
+                      spotlightManagerId === m.managerId ? null : m.managerId
+                    )
+                  }
+                  onMouseEnter={() => setHoveredManagerId(m.managerId)}
+                  onMouseLeave={() => setHoveredManagerId(null)}
+                  style={{
+                    top: 0,
+                    transform: `translateY(${topPosition}px)`,
+                    height: `${ROW_HEIGHT}px`,
+                    zIndex,
+                    opacity: isDimmed ? 0.35 : 1,
+                    borderColor: isFocused
+                      ? m.color
+                      : isLeader
+                        ? "rgba(0, 255, 135, 0.6)"
+                        : undefined,
+                    boxShadow: isFocused
+                      ? `0 0 25px ${m.color}60, 0 15px 35px rgba(0, 0, 0, 0.8)`
+                      : isLeader
+                        ? "0 10px 25px -5px rgba(0, 255, 135, 0.2)"
+                        : undefined,
+                    transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease, box-shadow 300ms ease, border-color 300ms ease`,
+                  }}
+                  className={`absolute left-0 right-0 rounded-2xl border px-3 sm:px-4 flex items-center gap-2.5 sm:gap-3 backdrop-blur-md cursor-pointer will-change-transform ${isLeader
+                    ? "bg-gradient-to-r from-emerald-950/70 via-slate-900/95 to-slate-900/90"
+                    : isFocused
+                      ? "bg-slate-900/95"
+                      : "bg-slate-950/80 border-slate-800/80 hover:border-slate-700 shadow-md"
+                    }`}
+                >
+                  {/* Rank Position Badge */}
+                  <div className="w-7 sm:w-8 shrink-0 flex items-center justify-center">
+                    <span
+                      className={`w-7 h-7 rounded-xl text-xs font-black flex items-center justify-center transition-colors duration-300 ${isLeader
+                        ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30"
+                        : m.currentRank <= 3
+                          ? "bg-slate-800 text-slate-200 border border-slate-700"
+                          : "text-slate-500 font-bold"
+                        }`}
+                    >
+                      {isLeader ? (
+                        <Crown className="h-4 w-4 text-slate-950 fill-current" />
+                      ) : (
+                        m.currentRank
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Manager & Team Name Label with Signature Color Indicator */}
+                  <div className="w-28 sm:w-40 shrink-0 truncate flex items-center gap-2">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                      style={{ backgroundColor: m.color }}
+                    />
+                    <div className="truncate">
+                      <span className="text-xs font-bold text-white block truncate">
+                        {m.managerName}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block truncate font-medium">
+                        {m.teamName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Animated Progress Bar with Counting Up Net Points */}
+                  <div className="flex-1 h-9 rounded-xl bg-slate-900/90 border border-slate-800/80 p-1 flex items-center relative overflow-hidden">
+                    <div
+                      style={{
+                        width: `${percentage}%`,
+                        backgroundColor: isFocused ? m.color : undefined,
+                        transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), background-color 300ms ease`,
+                      }}
+                      className={`h-full rounded-lg flex items-center justify-end pr-3 transition-all ${isFocused
+                        ? "text-slate-950 shadow-md"
+                        : isLeader
+                          ? "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/30"
+                          : m.currentRank <= 3
+                            ? "bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 shadow-sm"
+                            : "bg-gradient-to-r from-slate-700 via-slate-600 to-slate-500"
+                        }`}
+                    >
+                      <span
+                        className={`text-xs font-black tabular-nums drop-shadow-sm whitespace-nowrap ${isFocused ? "text-slate-950" : "text-white"
+                          }`}
+                      >
+                        <AnimatedCounter
+                          value={m.cumulativeNetPoints}
+                          durationMs={durationMs}
+                        /> pts
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gameweek Points Scored Animated Pill Badge */}
+                  <div className="shrink-0 flex items-center min-w-[50px] sm:min-w-[65px] justify-end">
+                    <div
+                      key={`gw-score-${m.managerId}-gw-${currentGw}`}
+                      className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm transition-all animate-in fade-in zoom-in-95 duration-500 ${currentGw === 0
+                        ? "bg-slate-800/40 text-slate-500 border-slate-800"
+                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
+                        }`}
+                      title={
+                        currentGw === 0
+                          ? "Pre-Season Baseline (0 points)"
+                          : `Scored +${m.gwNetPoints} net points in Gameweek ${currentGw}`
+                      }
+                    >
+                      {currentGw > 0 && (
+                        <Sparkles className="h-2.5 w-2.5 text-emerald-400 shrink-0 hidden sm:inline" />
+                      )}
+                      <span className="tabular-nums">
+                        {currentGw === 0 ? "0" : `+${m.gwNetPoints}`}
+                      </span>
+                      <span
+                        className={`text-[9px] uppercase tracking-tighter hidden md:inline ${currentGw === 0 ? "text-slate-600" : "text-emerald-500/70"
+                          }`}
+                      >
+                        {currentGw === 0 ? "pts" : "gw"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Weekly Delta Badge */}
+                  <div className="w-11 sm:w-12 shrink-0 text-right">
+                    {currentGw === 0 ? (
+                      <span className="inline-flex items-center text-[11px] text-slate-600 font-bold px-1.5 py-0.5">
+                        <Minus className="h-3 w-3 mr-0.5" />
+                        0
+                      </span>
+                    ) : rankDelta > 0 ? (
+                      <span className="inline-flex items-center text-[11px] font-black text-emerald-400 px-1.5 py-0.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
+                        <TrendingUp className="h-3 w-3 mr-0.5" />
+                        +{rankDelta}
+                      </span>
+                    ) : rankDelta < 0 ? (
+                      <span className="inline-flex items-center text-[11px] font-black text-rose-400 px-1.5 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                        <TrendingDown className="h-3 w-3 mr-0.5" />
+                        {rankDelta}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-[11px] text-slate-600 font-bold px-1.5 py-0.5">
+                        <Minus className="h-3 w-3 mr-0.5" />
+                        0
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Segmented Gameweek Scrubber Slider (Positioned at the BOTTOM of the visualization) */}
+        <div className="pt-4 border-t border-slate-800/80">
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner space-y-3.5">
+            {/* Header info row above slider with Play/Restart controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-400">
+              <div className="flex items-center gap-2">
+                <Sliders className="h-3.5 w-3.5 text-emerald-400" />
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Timeline Scrubber
+                </span>
+              </div>
+
+              {/* Scrubber Playback Controls & Status Badge */}
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                {/* Mini Play / Pause Button */}
+                <button
+                  onClick={() => {
+                    if (currentGw >= maxGw) setCurrentGw(0);
+                    setIsPlaying(!isPlaying);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer select-none"
+                  title={isPlaying ? "Pause Timeline Race" : "Play Timeline Race"}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause className="h-3 w-3 fill-current" />
+                      <span>PAUSE</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3 fill-current" />
+                      <span>{currentGw >= maxGw ? "REPLAY" : "PLAY"}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Mini Restart / Reset Button */}
+                <button
+                  onClick={() => {
+                    setIsPlaying(false);
+                    setCurrentGw(0);
+                  }}
+                  title="Restart to Pre-Season Baseline (0 pts)"
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer select-none"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Status Badge */}
+                <span className="text-emerald-400 font-black text-xs sm:text-sm px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-sm inline-flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {currentGw === 0 ? (
+                    <>
+                      <span>Pre-Season Baseline</span>
+                      <span className="text-slate-500 font-normal text-[11px] hidden sm:inline">
+                        (0 pts)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Gameweek {currentGw}</span>
+                      <span className="text-slate-500 font-normal text-[11px] hidden sm:inline">
+                        of {safeMaxGw}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Segmented Track & Custom Slider */}
+            <div className="relative py-1.5 flex items-center">
+              {/* Background Track with Segments */}
+              <div className="h-3 w-full bg-slate-900 border border-slate-800 rounded-full relative overflow-visible shadow-inner flex items-center">
+                {/* Active Progress Fill */}
+                <div
+                  style={{
+                    width: `${safeMaxGw > 0 ? (currentGw / safeMaxGw) * 100 : 0}%`,
+                    transition: isPlaying
+                      ? `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`
+                      : "width 150ms ease",
+                  }}
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/25"
+                />
+
+                {/* Notches / Tick dots along the track */}
+                {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+                  const leftPercent = (gw / safeMaxGw) * 100;
+                  const isPassed = gw <= currentGw;
+                  const isCurrent = gw === currentGw;
+                  const isMilestone = !isDenseMode
+                    ? milestoneGws.includes(gw)
+                    : true;
+
+                  if (!isDenseMode && !isMilestone && !isCurrent) {
+                    return (
+                      <div
+                        key={`track-tick-${gw}`}
+                        style={{ left: `${leftPercent}%` }}
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                      >
+                        <div
+                          className={`w-0.5 h-2 rounded-full ${isPassed ? "bg-emerald-400/50" : "bg-slate-700/80"
+                            }`}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={`track-tick-${gw}`}
+                      style={{ left: `${leftPercent}%` }}
+                      className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                    >
+                      <div
+                        className={`rounded-full transition-all duration-300 ${isCurrent
+                          ? "w-4.5 h-4.5 bg-emerald-300 border-2 border-slate-950 shadow-lg shadow-emerald-400/50 scale-110"
+                          : isPassed
+                            ? "w-2.5 h-2.5 bg-emerald-400 border border-slate-950"
+                            : "w-2 h-2 bg-slate-700 border border-slate-900"
+                          }`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Invisible Interactive Range Input overlay */}
+              <input
+                type="range"
+                min={0}
+                max={safeMaxGw}
+                step={1}
+                value={currentGw}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  setCurrentGw(Number(e.target.value));
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                title={
+                  currentGw === 0
+                    ? "Pre-Season Baseline (0 pts)"
+                    : `Gameweek ${currentGw}`
+                }
+              />
+            </div>
+
+            {/* Gameweek Markers / Milestone Ruler (Positioned BELOW the slider) */}
+            {!isDenseMode ? (
+              /* Milestone Ruler Mode for full season (safeMaxGw > 8) */
+              <div className="relative w-full pt-1 pb-1">
+                {/* Milestone Tick Labels */}
+                <div className="relative w-full h-9 flex items-center">
+                  {milestoneGws.map((gw) => {
+                    const leftPercent = (gw / safeMaxGw) * 100;
+                    const isCurrent = gw === currentGw;
+                    const isPassed = gw < currentGw;
+
+                    return (
+                      <button
+                        key={`ruler-milestone-${gw}`}
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setCurrentGw(gw);
+                        }}
+                        style={{
+                          left: `${leftPercent}%`,
+                          transform:
+                            gw === 0
+                              ? "translateX(0%)"
+                              : gw === safeMaxGw
+                                ? "translateX(-100%)"
+                                : "translateX(-50%)",
+                        }}
+                        className={`absolute top-0 flex flex-col items-center group cursor-pointer transition-all ${isCurrent ? "z-20 scale-105" : "z-10 hover:scale-105"
+                          }`}
+                      >
+                        <div
+                          className={`w-0.5 h-2 rounded-full mb-1 transition-colors ${isCurrent
+                            ? "bg-emerald-400 h-2.5"
+                            : isPassed
+                              ? "bg-emerald-500/50"
+                              : "bg-slate-700 group-hover:bg-slate-500"
+                            }`}
+                        />
+                        <span
+                          className={`text-[10px] sm:text-[11px] font-bold whitespace-nowrap px-1.5 py-0.5 rounded transition-colors ${isCurrent
+                            ? "text-emerald-300 font-black bg-emerald-500/10 border border-emerald-500/30"
+                            : isPassed
+                              ? "text-slate-300 group-hover:text-white"
+                              : "text-slate-500 group-hover:text-slate-300"
+                            }`}
+                        >
+                          {gw === 0 ? "Start" : `GW ${gw}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Floating Gliding Active Badge under the Slider Thumb */}
+                <div
+                  style={{
+                    left: `${(currentGw / safeMaxGw) * 100}%`,
+                    transition: isPlaying
+                      ? `left ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`
+                      : "left 150ms ease",
+                  }}
+                  className="absolute top-9 -translate-x-1/2 pointer-events-none z-30"
+                >
+                  <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-[10px] sm:text-xs shadow-lg shadow-emerald-500/30 border border-emerald-300 whitespace-nowrap">
+                    <Sparkles className="h-2.5 w-2.5 fill-current hidden sm:inline" />
+                    <span>
+                      {currentGw === 0 ? "Start (0 pts)" : `GW ${currentGw} Active`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Dense Button Mode for early season (safeMaxGw <= 8) */
+              <div className="relative w-full pt-1">
+                <div className="flex items-stretch justify-between gap-1 sm:gap-2">
+                  {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+                    const isCurrent = gw === currentGw;
+                    const isPassed = gw < currentGw;
+
+                    return (
+                      <button
+                        key={`gw-marker-btn-${gw}`}
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setCurrentGw(gw);
+                        }}
+                        className={`flex-1 flex flex-col items-center justify-center py-2 px-1 sm:px-2.5 rounded-xl text-center transition-all cursor-pointer border select-none ${isCurrent
+                          ? "bg-gradient-to-b from-emerald-500/25 via-emerald-500/15 to-transparent border-emerald-500/60 text-emerald-300 shadow-lg shadow-emerald-500/20 ring-1 ring-emerald-500/40 scale-[1.02]"
+                          : isPassed
+                            ? "bg-slate-900/90 border-slate-800/90 text-slate-300 hover:border-slate-700 hover:text-white hover:bg-slate-800/60"
+                            : "bg-slate-950/50 border-slate-900/80 text-slate-600 hover:border-slate-800 hover:text-slate-400"
+                          }`}
+                      >
+                        <span
+                          className={`text-xs sm:text-sm font-black leading-tight ${isCurrent
+                            ? "text-emerald-300"
+                            : isPassed
+                              ? "text-slate-200"
+                              : "text-slate-500"
+                            }`}
+                        >
+                          {gw === 0 ? "Start" : `GW ${gw}`}
+                        </span>
+                        <span
+                          className={`text-[9px] sm:text-[10px] font-semibold leading-none mt-1 ${isCurrent
+                            ? "text-emerald-400/90"
+                            : isPassed
+                              ? "text-slate-400"
+                              : "text-slate-600"
+                            }`}
+                        >
+                          {gw === 0 ? "0 pts" : `Round ${gw}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
