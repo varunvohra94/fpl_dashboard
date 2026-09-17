@@ -290,9 +290,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   y1={padding.top}
                   x2={x}
                   y2={padding.top + graphHeight}
-                  stroke={isCurrent ? "rgba(0, 255, 135, 0.35)" : "rgba(51, 65, 85, 0.2)"}
-                  strokeWidth={isCurrent ? "2" : "1"}
-                  strokeDasharray={isCurrent ? undefined : "3 3"}
+                  stroke="rgba(51, 65, 85, 0.2)"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
                 />
                 <text
                   x={x}
@@ -307,21 +307,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               </g>
             );
           })}
-
-          {/* Continuous Gliding Active Gameweek Vertical Scrubber Line */}
-          <line
-            x1={getX(currentGw)}
-            y1={padding.top - 8}
-            x2={getX(currentGw)}
-            y2={padding.top + graphHeight + 8}
-            stroke="#00FF87"
-            strokeWidth="2"
-            strokeDasharray="4 2"
-            opacity="0.75"
-            style={{
-              transition: `x1 ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), x2 ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
-            }}
-          />
 
           {/* Manager Trajectory Curves */}
           {profiles.map((p, idx) => {
