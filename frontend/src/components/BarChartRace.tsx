@@ -623,28 +623,65 @@ export const BarChartRace: React.FC<BarChartRaceProps> = ({
         {/* Segmented Gameweek Scrubber Slider (Positioned at the BOTTOM of the visualization) */}
         <div className="pt-4 border-t border-slate-800/80">
           <div className="p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner space-y-3.5">
-            {/* Header info row above slider */}
-            <div className="flex items-center justify-between text-xs font-bold text-slate-400">
+            {/* Header info row above slider with Play/Restart controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-400">
               <div className="flex items-center gap-2">
                 <Sliders className="h-3.5 w-3.5 text-emerald-400" />
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   Timeline Scrubber
                 </span>
               </div>
-              <div className="text-right">
+
+              {/* Scrubber Playback Controls & Status Badge */}
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                {/* Mini Play / Pause Button */}
+                <button
+                  onClick={() => {
+                    if (currentGw >= maxGw) setCurrentGw(0);
+                    setIsPlaying(!isPlaying);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer select-none"
+                  title={isPlaying ? "Pause Timeline Race" : "Play Timeline Race"}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause className="h-3 w-3 fill-current" />
+                      <span>PAUSE</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3 fill-current" />
+                      <span>{currentGw >= maxGw ? "REPLAY" : "PLAY"}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Mini Restart / Reset Button */}
+                <button
+                  onClick={() => {
+                    setIsPlaying(false);
+                    setCurrentGw(0);
+                  }}
+                  title="Restart to Pre-Season Baseline (0 pts)"
+                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer select-none"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Status Badge */}
                 <span className="text-emerald-400 font-black text-xs sm:text-sm px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-sm inline-flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   {currentGw === 0 ? (
                     <>
                       <span>Pre-Season Baseline</span>
-                      <span className="text-slate-500 font-normal text-[11px]">
+                      <span className="text-slate-500 font-normal text-[11px] hidden sm:inline">
                         (0 pts)
                       </span>
                     </>
                   ) : (
                     <>
                       <span>Gameweek {currentGw}</span>
-                      <span className="text-slate-500 font-normal text-[11px]">
+                      <span className="text-slate-500 font-normal text-[11px] hidden sm:inline">
                         of {safeMaxGw}
                       </span>
                     </>
