@@ -48,6 +48,14 @@ class PipelineLoader:
         """Dispose of the async engine connection pool."""
         await self.engine.dispose()
 
+    async def init_tables(self) -> None:
+        """Ensure all SQLAlchemy tables exist in the target database."""
+        from app.db.base import Base
+        import app.models  # noqa: F401
+
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
     async def get_session(self) -> AsyncSession:
         """Create a new async database session."""
         return self.session_factory()

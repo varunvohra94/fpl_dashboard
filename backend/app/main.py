@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application startup and shutdown event lifecycle."""
     logger.info(f"Starting {settings.PROJECT_NAME} in {settings.ENVIRONMENT} mode...")
+    from app.db.base import Base
+    import app.models  # noqa: F401
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     yield
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
     await engine.dispose()
