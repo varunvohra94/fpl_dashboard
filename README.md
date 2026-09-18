@@ -26,31 +26,47 @@ A bespoke Fantasy Premier League (FPL) web dashboard and analytics platform desi
 
 ---
 
-## 🚀 Quickstart (Local Development)
+## 🚀 Quickstart (Testing & Development Environment)
 
-### 1. Configure Environment
-Copy the example environment file:
+Spin up the entire stack (PostgreSQL Docker container, database bootstrap & backfill, FastAPI backend, and Next.js UI) with a single command:
+
 ```bash
-cp .env.example .env
+make test-env
 ```
 
-### 2. Start PostgreSQL Database
-Start the local PostgreSQL container (which automatically provisions the schema via `infrastructure/sql/init.sql`):
+Once running, the test environment will automatically display the active URLs:
+- 🌐 **Frontend Web UI:** `http://localhost:3000`
+- 📚 **Interactive API Docs (Swagger):** `http://localhost:8000/docs`
+- 🩺 **API Health Check:** `http://localhost:8000/health`
+
+To stop all services and containers, simply press `Ctrl+C` or run:
 ```bash
-docker compose up -d postgres
+make stop
 ```
 
-Verify container status:
-```bash
-docker compose ps
-```
+---
 
-### 3. Setup & Test Backend
-```bash
-cd backend
-uv sync
-uv run python test_db_integration.py
-```
+## 🛠️ Makefile Command Reference
+
+Run `make help` to view all available commands:
+
+| Command | Description |
+| :--- | :--- |
+| `make test-env` / `make dev` | Start full testing environment (Docker, DB seed, UI & API) |
+| `make stop` / `make down` | Stop all services and containers |
+| `make docker-up` | Start PostgreSQL container in background |
+| `make docker-down` | Stop PostgreSQL container |
+| `make db-wait` | Wait until PostgreSQL is ready |
+| `make db-load` | Run data pipeline bootstrap and backfill |
+| `make db-reset` | Re-apply database schema from `infrastructure/sql/init.sql` |
+| `make backend` | Start FastAPI backend standalone (`http://localhost:8000`) |
+| `make frontend` | Start Next.js UI standalone (`http://localhost:3000`) |
+| `make data-pipeline` | Run FPL data ingestion poller |
+| `make install` | Install/sync dependencies across all packages (`uv` & `npm`) |
+| `make test` | Run all test suites (`backend` and `data_pipeline`) |
+| `make lint` | Run Ruff and ESLint checks |
+| `make format` | Format Python codebase with Ruff |
+| `make clean` | Remove caches and build artifacts |
 
 ---
 
