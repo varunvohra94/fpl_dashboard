@@ -2,9 +2,10 @@
 # Cloud Run: Backend API Service (FastAPI)
 # ==============================================================================
 resource "google_cloud_run_v2_service" "backend" {
-  name     = "fpl-backend"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name                = "fpl-backend"
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
 
   template {
     service_account = var.backend_sa_email
@@ -90,9 +91,10 @@ resource "google_cloud_run_v2_service_iam_member" "backend_public" {
 # Cloud Run: Frontend Web UI (Next.js)
 # ==============================================================================
 resource "google_cloud_run_v2_service" "frontend" {
-  name     = "fpl-frontend"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name                = "fpl-frontend"
+  location            = var.region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false
 
   template {
     service_account = var.frontend_sa_email
@@ -146,8 +148,9 @@ resource "google_cloud_run_v2_service_iam_member" "frontend_public" {
 # Cloud Run Job: Data Pipeline & Batch Poller Engine
 # ==============================================================================
 resource "google_cloud_run_v2_job" "pipeline_job" {
-  name     = "fpl-pipeline-job"
-  location = var.region
+  name                = "fpl-pipeline-job"
+  location            = var.region
+  deletion_protection = false
 
   template {
     template {
