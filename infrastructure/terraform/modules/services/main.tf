@@ -6,13 +6,13 @@ resource "google_cloud_run_v2_service" "backend" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
-  scaling {
-    min_instance_count = var.min_instances
-    max_instance_count = var.max_instances
-  }
-
   template {
     service_account = var.backend_sa_email
+
+    scaling {
+      min_instance_count = var.min_instances
+      max_instance_count = var.max_instances
+    }
 
     vpc_access {
       connector = var.vpc_connector_id
@@ -94,13 +94,13 @@ resource "google_cloud_run_v2_service" "frontend" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
-  scaling {
-    min_instance_count = var.min_instances
-    max_instance_count = var.max_instances
-  }
-
   template {
     service_account = var.frontend_sa_email
+
+    scaling {
+      min_instance_count = var.min_instances
+      max_instance_count = var.max_instances
+    }
 
     containers {
       image = var.frontend_image != "" ? var.frontend_image : "gcr.io/cloudrun/hello"
