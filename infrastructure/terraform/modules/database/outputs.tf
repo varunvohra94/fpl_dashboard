@@ -26,14 +26,17 @@ output "database_user" {
 output "secret_database_url_id" {
   description = "Secret ID for the async SQLAlchemy DATABASE_URL"
   value       = google_secret_manager_secret.database_url.secret_id
+  depends_on  = [google_secret_manager_secret_version.database_url_version]
 }
 
 output "secret_sync_database_url_id" {
   description = "Secret ID for the sync PostgreSQL SYNC_DATABASE_URL"
   value       = google_secret_manager_secret.sync_database_url.secret_id
+  depends_on  = [google_secret_manager_secret_version.sync_database_url_version]
 }
 
 output "secret_db_password_id" {
   description = "Secret ID for the database password"
   value       = google_secret_manager_secret.db_password.secret_id
+  depends_on  = [google_secret_manager_secret_version.db_password_version]
 }
