@@ -52,6 +52,7 @@ async def async_main() -> None:
 
     async with FPLClient() as client:
         loader = PipelineLoader()
+        await loader.init_tables()
         runner = FPLPipelineRunner(fpl_client=client, loader=loader)
 
         try:
