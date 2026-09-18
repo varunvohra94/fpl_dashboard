@@ -1,0 +1,23 @@
+# ==============================================================================
+# Sample Terraform Configuration Variables
+# Copy to terraform.tfvars or supply via CI/CD environment variables
+# ==============================================================================
+
+project_id      = "fpl-league-dashboard-prod"
+region          = "us-east1"
+environment     = "production"
+fpl_league_id   = 944559
+
+# Database Configuration
+db_tier         = "db-f1-micro"
+db_name         = "fpl_db"
+db_user         = "fpl_user"
+db_disk_size_gb = 10
+
+# Cloud Run Scaling (Cost-Optimized Scale-to-Zero)
+min_instances   = 0
+max_instances   = 2
+backend_cpu     = "1"
+backend_memory  = "512Mi"
+frontend_cpu    = "1"
+frontend_memory = "512Mi"
