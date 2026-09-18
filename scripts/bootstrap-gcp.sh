@@ -143,6 +143,7 @@ ROLES=(
     "roles/iam.serviceAccountAdmin"
     "roles/iam.serviceAccountUser"
     "roles/resourcemanager.projectIamAdmin"
+    "roles/serviceusage.serviceUsageAdmin"
     "roles/storage.admin"
 )
 
