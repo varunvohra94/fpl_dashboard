@@ -4,7 +4,8 @@
 
 .PHONY: all help test-env start dev up docker-up docker-down docker-restart docker-logs \
         db-wait db-bootstrap db-backfill db-load db-seed db-reset \
-        backend frontend data-pipeline install test test-backend test-pipeline \
+        backend frontend data-pipeline gcp-bootstrap tf-init tf-plan tf-apply tf-fmt \
+        install test test-backend test-pipeline \
         lint format clean stop down
 
 # Colors for terminal styling
@@ -59,6 +60,12 @@ help:
 	@echo "  $(MAGENTA)make backend$(RESET)          Start FastAPI backend server (http://localhost:$(BACKEND_PORT))"
 	@echo "  $(MAGENTA)make frontend$(RESET)         Start Next.js frontend dev server (http://localhost:$(FRONTEND_PORT))"
 	@echo "  $(MAGENTA)make data-pipeline$(RESET)    Run FPL data ingestion poller"
+	@echo ""
+	@echo "$(BOLD)☁️ GCP Cloud Infrastructure & Deployment:$(RESET)"
+	@echo "  $(CYAN)make gcp-bootstrap$(RESET)    Run one-time GCP project & Workload Identity setup"
+	@echo "  $(CYAN)make tf-init$(RESET)          Initialize Terraform remote GCS backend & modules"
+	@echo "  $(CYAN)make tf-plan$(RESET)          Generate and inspect Terraform execution plan"
+	@echo "  $(CYAN)make tf-apply$(RESET)         Apply Terraform cloud infrastructure changes"
 	@echo ""
 	@echo "$(BOLD)🧪 Testing & Quality Assurance:$(RESET)"
 	@echo "  $(YELLOW)make install$(RESET)          Install/sync dependencies (backend, pipeline, frontend)"
@@ -143,6 +150,28 @@ frontend:
 data-pipeline:
 	@echo "$(CYAN)🔄 Running Data Pipeline Poller...$(RESET)"
 	@cd data_pipeline && uv run python -m src.main --mode=poll
+
+# ------------------------------------------------------------------------------
+# ☁️ GCP Cloud Infrastructure & Deployment
+# ------------------------------------------------------------------------------
+gcp-bootstrap:
+	@./scripts/bootstrap-gcp.sh
+
+tf-init:
+	@echo "$(CYAN)⚙️ Initializing Terraform in infrastructure/terraform/...$(RESET)"
+	@cd infrastructure/terraform && terraform init
+
+tf-plan:
+	@echo "$(CYAN)📋 Generating Terraform Execution Plan...$(RESET)"
+	@cd infrastructure/terraform && terraform plan
+
+tf-apply:
+	@echo "$(YELLOW)🚀 Applying Terraform Cloud Infrastructure changes...$(RESET)"
+	@cd infrastructure/terraform && terraform apply
+
+tf-fmt:
+	@echo "$(BLUE)🎨 Formatting Terraform configuration files...$(RESET)"
+	@cd infrastructure/terraform && terraform fmt -recursive
 
 # ------------------------------------------------------------------------------
 # 🧪 Installation, Testing & Code Quality

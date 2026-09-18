@@ -24,9 +24,52 @@ The PostgreSQL relational schema is defined in [`infrastructure/sql/init.sql`](.
 
 ## ☁️ Cloud Infrastructure (GCP & Terraform)
 
-Upcoming Terraform modules will manage:
-- **Cloud SQL for PostgreSQL:** Managed database instance with private IP and automated backups.
-- **Cloud Run:** Serverless container execution for FastAPI backend (scaling to zero).
-- **Artifact Registry:** Secure container repository for Docker images.
-- **Cloud Scheduler & Cloud Functions:** Cadenced polling for FPL API status updates.
-- **Secret Manager:** Zero-hardcoded credentials and connection string resolution.
+All cloud resources are defined declaratively in [`infrastructure/terraform/`](./terraform/) targeting Google Cloud Platform:
+
+### Architecture Components
+
+| Component | GCP Service | Configuration & Sizing |
+| :--- | :--- | :--- |
+| **Backend API** | Cloud Run (`fpl-backend`) | Serverless FastAPI (`min_instances = 0`, `max_instances = 2`, `512Mi` RAM) |
+| **Frontend UI** | Cloud Run (`fpl-frontend`) | Serverless Next.js Standalone (`min_instances = 0`, `max_instances = 2`, `512Mi` RAM) |
+| **Batch Pipeline** | Cloud Run Job (`fpl-pipeline-job`) | On-demand ETL container execution for matchday finalization |
+| **Hourly Poller** | Cloud Scheduler (`fpl-pipeline-hourly-poller`) | Cron `0 * * * *` triggering Cloud Run Job via OIDC authentication |
+| **Database** | Cloud SQL for PostgreSQL 16 | PostgreSQL 16 on private VPC subnet with automated daily backups |
+| **Container Registry** | Artifact Registry (`fpl-images`) | Regional Docker repository for container images |
+| **Secrets Engine** | Secret Manager | Zero-plaintext credentials (`db-password`, `database-url`, `sync-database-url`) |
+| **CI/CD Access** | Workload Identity Federation (WIF) | Keyless GitHub Actions OIDC impersonation (`varunvohra94/fpl_dashboard`) |
+
+---
+
+### 🚀 One-Time GCP Bootstrap
+
+Before applying Terraform for the first time, execute the bootstrap script from the repository root:
+
+```bash
+./scripts/bootstrap-gcp.sh
+```
+
+This script automatically:
+1. Enables required Google Cloud APIs (`run`, `sqladmin`, `secretmanager`, `artifactregistry`, `iam`, etc.).
+2. Creates the GCS bucket (`gs://fpl-league-dashboard-prod-tfstate`) with Object Versioning enabled.
+3. Provisions the Workload Identity Pool and Provider for GitHub Actions.
+4. Generates the deployment Service Account (`github-actions-deployer`) with least-privilege IAM roles.
+
+---
+
+### 🛠️ Terraform Directory Layout
+
+```
+infrastructure/terraform/
+├── main.tf                    # Root orchestration module
+├── variables.tf               # Input parameters and cost-optimized defaults
+├── terraform.tfvars.example   # Sample variable values
+├── versions.tf                # Provider versions and GCS remote backend
+├── outputs.tf                 # Exported endpoints, URLs, and connection strings
+└── modules/
+    ├── artifact_registry/     # Docker image repository
+    ├── database/              # Cloud SQL Postgres 16 & Secret Manager secrets
+    ├── iam/                   # Dedicated least-privilege service accounts
+    ├── networking/            # VPC, Private IP Peering & Serverless VPC Connector
+    └── services/              # Cloud Run Services, Cloud Run Job & Cloud Scheduler
+```
