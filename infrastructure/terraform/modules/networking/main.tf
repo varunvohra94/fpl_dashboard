@@ -19,11 +19,18 @@ resource "google_compute_global_address" "private_ip_address" {
   network       = google_compute_network.vpc.id
 }
 
+# Enable Service Networking API for VPC Peering (Cloud SQL)
+resource "google_project_service" "servicenetworking" {
+  service            = "servicenetworking.googleapis.com"
+  disable_on_destroy = false
+}
+
 # Private VPC Peering with Google Managed Services (Cloud SQL)
 resource "google_service_networking_connection" "private_vpc_connection" {
   network                 = google_compute_network.vpc.id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
+  depends_on              = [google_project_service.servicenetworking]
 }
 
 # Serverless VPC Access Connector for Cloud Run Services

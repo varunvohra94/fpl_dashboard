@@ -16,7 +16,7 @@ WORKDIR /workspace/backend
 # Install dependencies into container
 RUN uv sync --frozen || uv sync
 
-EXPOSE 8000
+ENV PORT=8000
 
-# Default command starts Uvicorn ASGI server
-ENTRYPOINT ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command starts Uvicorn ASGI server respecting PORT environment variable
+CMD ["sh", "-c", "exec uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

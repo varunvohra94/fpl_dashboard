@@ -82,6 +82,7 @@ SERVICES=(
     "artifactregistry.googleapis.com"
     "cloudscheduler.googleapis.com"
     "vpcaccess.googleapis.com"
+    "servicenetworking.googleapis.com"
     "compute.googleapis.com"
 )
 
