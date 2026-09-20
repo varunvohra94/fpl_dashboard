@@ -114,8 +114,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   }
 
   const activeFocusId = selectedManagerId || hoveredManagerId;
-  const progressRatio = safeMaxGw > 0 ? currentGw / safeMaxGw : 0;
-  const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
 
   // =========================================================
   // MOBILE: VERTICALLY LONGER SMOOTH ROLLING HORIZON ENGINE
@@ -135,6 +133,30 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return mPadding.top + ((rank - 1) / (totalManagers - 1)) * mGraphHeight;
   };
 
+  // Generate exact active path (0 to currentGw) for mobile
+  const generateMobileActivePath = (managerId: number) => {
+    const points: { x: number; y: number }[] = [];
+    for (let gw = 0; gw <= currentGw; gw++) {
+      const data = trajectoryMap[managerId]?.[gw];
+      if (data) {
+        points.push({ x: getMobileX(gw), y: getMobileY(data.rank) });
+      }
+    }
+
+    if (points.length === 0) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return path;
+  };
+
+  // Generate full season path (0 to safeMaxGw) for ghost guideline on mobile
   const generateMobileFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
     for (let gw = 0; gw <= safeMaxGw; gw++) {
@@ -184,6 +206,30 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return dPadding.top + ((rank - 1) / (totalManagers - 1)) * dGraphHeight;
   };
 
+  // Generate exact active path (0 to currentGw) for desktop
+  const generateDesktopActivePath = (managerId: number) => {
+    const points: { x: number; y: number }[] = [];
+    for (let gw = 0; gw <= currentGw; gw++) {
+      const data = trajectoryMap[managerId]?.[gw];
+      if (data) {
+        points.push({ x: getDesktopX(gw), y: getDesktopY(data.rank) });
+      }
+    }
+
+    if (points.length === 0) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return path;
+  };
+
+  // Generate full season path (0 to safeMaxGw) for ghost guideline on desktop
   const generateDesktopFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
     for (let gw = 0; gw <= safeMaxGw; gw++) {
@@ -383,6 +429,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   const isFocused = activeFocusId === p.id;
                   const isDimmed = activeFocusId !== null && !isFocused;
                   const fullPath = generateMobileFullPath(p.id);
+                  const activePath = generateMobileActivePath(p.id);
                   const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
                   const currentData = trajectoryMap[p.id]?.[currentGw];
 
@@ -391,7 +438,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
                   return (
                     <g key={`m-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
-                      {/* Ghost full path */}
+                      {/* Ghost full season path */}
                       <path
                         d={fullPath}
                         fill="none"
@@ -401,37 +448,31 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         opacity="0.18"
                       />
 
-                      {/* Glowing focus aura */}
+                      {/* Glowing focus aura (Strictly anchored to active gameweek endpoint) */}
                       {isFocused && (
                         <path
-                          d={fullPath}
-                          pathLength={1000}
-                          strokeDasharray={1000}
-                          strokeDashoffset={strokeOffset}
+                          d={activePath}
                           fill="none"
                           stroke={color}
                           strokeWidth="9"
                           opacity="0.35"
                           filter="url(#m-trail-glow)"
                           style={{
-                            transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                            transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                           }}
                         />
                       )}
 
-                      {/* Continuous animated drawing line */}
+                      {/* Continuous drawing active trail line (Strictly anchored to active gameweek endpoint) */}
                       <path
-                        d={fullPath}
-                        pathLength={1000}
-                        strokeDasharray={1000}
-                        strokeDashoffset={strokeOffset}
+                        d={activePath}
                         fill="none"
                         stroke={color}
                         strokeWidth={isFocused ? "4.5" : "2.5"}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         style={{
-                          transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
+                          transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
                         }}
                       />
 
@@ -724,6 +765,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             const isFocused = activeFocusId === p.id;
             const isDimmed = activeFocusId !== null && !isFocused;
             const fullPath = generateDesktopFullPath(p.id);
+            const activePath = generateDesktopActivePath(p.id);
             const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
             const currentData = trajectoryMap[p.id]?.[currentGw];
 
@@ -745,34 +787,28 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 {/* Glowing Focus Aura along active path */}
                 {isFocused && (
                   <path
-                    d={fullPath}
-                    pathLength={1000}
-                    strokeDasharray={1000}
-                    strokeDashoffset={strokeOffset}
+                    d={activePath}
                     fill="none"
                     stroke={color}
                     strokeWidth="9"
                     opacity="0.35"
                     filter="url(#d-trail-glow)"
                     style={{
-                      transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                      transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                     }}
                   />
                 )}
 
                 {/* Continuous Drawing Active Trail Line */}
                 <path
-                  d={fullPath}
-                  pathLength={1000}
-                  strokeDasharray={1000}
-                  strokeDashoffset={strokeOffset}
+                  d={activePath}
                   fill="none"
                   stroke={color}
                   strokeWidth={isFocused ? "4.5" : "2.5"}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{
-                    transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
+                    transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
                   }}
                 />
 
