@@ -47,6 +47,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
+  const [expandedManagerId, setExpandedManagerId] = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
   if (!profiles || profiles.length === 0) return null;
@@ -113,31 +114,35 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     });
   }
 
-  // 2. SVG Dimensions and Coordinates
-  const svgWidth = 860;
-  const svgHeight = Math.max(300, totalManagers * 40 + 40);
-  const padding = { top: 35, right: 150, bottom: 45, left: 60 };
-  const graphWidth = svgWidth - padding.left - padding.right;
-  const graphHeight = svgHeight - padding.top - padding.bottom;
+  const activeFocusId = selectedManagerId || hoveredManagerId;
+  const progressRatio = safeMaxGw > 0 ? currentGw / safeMaxGw : 0;
+  const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
 
-  // Coordinate mappers
-  const getX = (gw: number) => {
-    if (safeMaxGw < 1) return padding.left;
-    return padding.left + (gw / safeMaxGw) * graphWidth;
+  // ==========================================
+  // DESKTOP HORIZONTAL BUMP CHART COORDINATES
+  // ==========================================
+  const dSvgWidth = 860;
+  const dSvgHeight = Math.max(300, totalManagers * 40 + 40);
+  const dPadding = { top: 35, right: 150, bottom: 45, left: 60 };
+  const dGraphWidth = dSvgWidth - dPadding.left - dPadding.right;
+  const dGraphHeight = dSvgHeight - dPadding.top - dPadding.bottom;
+
+  const getDesktopX = (gw: number) => {
+    if (safeMaxGw < 1) return dPadding.left;
+    return dPadding.left + (gw / safeMaxGw) * dGraphWidth;
   };
 
-  const getY = (rank: number) => {
-    if (totalManagers <= 1) return padding.top + graphHeight / 2;
-    return padding.top + ((rank - 1) / (totalManagers - 1)) * graphHeight;
+  const getDesktopY = (rank: number) => {
+    if (totalManagers <= 1) return dPadding.top + dGraphHeight / 2;
+    return dPadding.top + ((rank - 1) / (totalManagers - 1)) * dGraphHeight;
   };
 
-  // Generate full season smooth cubic bezier SVG path (0 to safeMaxGw)
-  const generateFullPath = (managerId: number) => {
+  const generateDesktopFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
     for (let gw = 0; gw <= safeMaxGw; gw++) {
       const data = trajectoryMap[managerId]?.[gw];
       if (data) {
-        points.push({ x: getX(gw), y: getY(data.rank) });
+        points.push({ x: getDesktopX(gw), y: getDesktopY(data.rank) });
       }
     }
 
@@ -154,17 +159,106 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return path;
   };
 
-  // Calculate continuous stroke dashoffset (out of pathLength 1000)
-  const progressRatio = safeMaxGw > 0 ? currentGw / safeMaxGw : 0;
-  const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
+  // ==========================================
+  // OPTION D: MANAGER TRAJECTORY MATRIX DATA
+  // ==========================================
+  const currentLeaderboard = profiles
+    .map((p, idx) => {
+      const data = trajectoryMap[p.id]?.[currentGw];
+      const prevData = currentGw > 0 ? trajectoryMap[p.id]?.[currentGw - 1] : undefined;
+      const rank = data?.rank || idx + 1;
+      const prevRank = prevData?.rank || rank;
+      const startRank = trajectoryMap[p.id]?.[0]?.rank || idx + 1;
+      const points = data?.points || 0;
+      const cumNet = data?.cumNet || 0;
+      const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+      const rankDelta = prevRank - rank;
+      const totalDelta = startRank - rank;
 
-  const activeFocusId = selectedManagerId || hoveredManagerId;
+      // Calculate min, max, best score across season to currentGw
+      let highestRank = rank;
+      let lowestRank = rank;
+      let bestGwScore = 0;
+
+      for (let g = 0; g <= currentGw; g++) {
+        const item = trajectoryMap[p.id]?.[g];
+        if (item) {
+          if (item.rank < highestRank) highestRank = item.rank;
+          if (item.rank > lowestRank) lowestRank = item.rank;
+          if (item.points > bestGwScore) bestGwScore = item.points;
+        }
+      }
+
+      return {
+        managerId: p.id,
+        playerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
+        rank,
+        prevRank,
+        startRank,
+        rankDelta,
+        totalDelta,
+        points,
+        cumNet,
+        color,
+        highestRank,
+        lowestRank,
+        bestGwScore,
+      };
+    })
+    .sort((a, b) => a.rank - b.rank);
+
+  // Generate Sparkline Path for a Manager (0 to currentGw)
+  const generateSparklinePath = (managerId: number, width = 180, height = 26) => {
+    const padX = 6;
+    const padY = 4;
+    const innerW = width - 2 * padX;
+    const innerH = height - 2 * padY;
+
+    const points: { x: number; y: number }[] = [];
+    for (let gw = 0; gw <= safeMaxGw; gw++) {
+      const data = trajectoryMap[managerId]?.[gw];
+      if (data) {
+        const x = padX + (gw / safeMaxGw) * innerW;
+        const y =
+          totalManagers <= 1
+            ? padY + innerH / 2
+            : padY + ((data.rank - 1) / (totalManagers - 1)) * innerH;
+        points.push({ x, y });
+      }
+    }
+
+    if (points.length === 0) return { line: "", area: "", head: { x: 0, y: 0 } };
+    if (points.length === 1) {
+      return {
+        line: `M ${points[0].x} ${points[0].y}`,
+        area: "",
+        head: points[0],
+      };
+    }
+
+    let line = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      line += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+
+    const currentHead = points[Math.min(currentGw, points.length - 1)] || points[0];
+
+    // Area path closing
+    const lastPoint = points[points.length - 1];
+    const area = `${line} L ${lastPoint.x} ${height} L ${points[0].x} ${height} Z`;
+
+    return { line, area, head: currentHead };
+  };
 
   return (
     <div className="w-full space-y-4">
       {/* Legend / Filter Pills */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {profiles.map((p, idx) => {
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
             const isFocused = activeFocusId === p.id;
@@ -183,7 +277,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   borderColor: isFocused ? color : undefined,
                   boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                   isFocused
                     ? "bg-slate-800 text-white"
                     : isDimmed
@@ -195,7 +289,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                   style={{ backgroundColor: color }}
                 />
-                <span className="truncate max-w-[110px]">{p.player_name}</span>
+                <span className="truncate max-w-[100px] sm:max-w-[120px]">{p.player_name}</span>
                 <span
                   className="text-[10px] font-black px-1.5 py-0.5 rounded"
                   style={{
@@ -224,22 +318,322 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
         )}
       </div>
 
-      {/* SVG Bump Chart Canvas */}
-      <div className="relative overflow-x-auto w-full">
+      {/* ========================================================================= */}
+      {/* MOBILE VIEW: OPTION D - COMPACT TRAJECTORY MATRIX & SPARKLINE CARDS (<md) */}
+      {/* ========================================================================= */}
+      <div className="block md:hidden space-y-2.5">
+        {/* Header Ribbon */}
+        <div className="flex items-center justify-between px-2 py-1.5 bg-slate-900/60 border border-slate-800/80 rounded-xl text-[11px]">
+          <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{currentGw === 0 ? "Pre-Season Baseline" : `GW ${currentGw} Trajectory Matrix`}</span>
+          </div>
+          <span className="text-slate-400">Tap card to expand</span>
+        </div>
+
+        {/* Manager Rows with Sparklines */}
+        <div className="space-y-2">
+          {currentLeaderboard.map((item) => {
+            const isFocused = activeFocusId === item.managerId;
+            const isDimmed = activeFocusId !== null && !isFocused;
+            const isExpanded = expandedManagerId === item.managerId;
+            const isFirst = item.rank === 1;
+            const sparkline = generateSparklinePath(item.managerId, 160, 24);
+
+            return (
+              <div
+                key={`matrix-card-${item.managerId}`}
+                style={{
+                  borderColor: isFocused ? item.color : undefined,
+                  boxShadow: isFocused ? `0 0 16px ${item.color}35` : undefined,
+                }}
+                className={`rounded-2xl border transition-all overflow-hidden ${
+                  isFocused
+                    ? "bg-slate-900/95 text-white"
+                    : isDimmed
+                    ? "bg-slate-950/40 border-slate-900/60 opacity-30 text-slate-500"
+                    : isFirst
+                    ? "bg-slate-950/90 border-emerald-500/30 text-slate-200 hover:border-emerald-500/60"
+                    : "bg-slate-950/70 border-slate-800/80 text-slate-300 hover:border-slate-700"
+                }`}
+              >
+                {/* Main Card Header / Row */}
+                <div
+                  onClick={() => {
+                    setExpandedManagerId(isExpanded ? null : item.managerId);
+                    setSelectedManagerId(
+                      selectedManagerId === item.managerId ? null : item.managerId
+                    );
+                  }}
+                  className="p-3 cursor-pointer select-none"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Left: Rank + Dot + Manager Name */}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className={`text-xs font-black px-2 py-0.5 rounded-lg shrink-0 ${
+                          isFirst
+                            ? "bg-emerald-400/20 text-emerald-400 shadow-sm"
+                            : "bg-slate-800 text-slate-300"
+                        }`}
+                      >
+                        #{item.rank}
+                      </span>
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <div className="truncate min-w-0">
+                        <span className="block text-xs font-extrabold truncate text-white">
+                          {item.playerName}
+                        </span>
+                        <span className="block text-[10px] text-slate-400 truncate">
+                          {item.teamName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Scores + Rank Delta */}
+                    <div className="text-right shrink-0">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-xs font-black text-emerald-400">
+                          {item.cumNet} pts
+                        </span>
+                        {currentGw > 0 && (
+                          <span
+                            className={`text-[10px] font-bold px-1 rounded ${
+                              item.rankDelta > 0
+                                ? "bg-emerald-500/15 text-emerald-400"
+                                : item.rankDelta < 0
+                                ? "bg-rose-500/15 text-rose-400"
+                                : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            {item.rankDelta > 0
+                              ? `↑${item.rankDelta}`
+                              : item.rankDelta < 0
+                              ? `↓${Math.abs(item.rankDelta)}`
+                              : "="}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400">
+                        {currentGw === 0 ? "Pre-Season" : `GW: +${item.points} pts`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sparkline & Form Dots Row */}
+                  <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between gap-3">
+                    {/* Inline Sparkline */}
+                    <div className="w-[160px] h-[24px] relative shrink-0">
+                      <svg
+                        viewBox="0 0 160 24"
+                        className="w-full h-full overflow-visible"
+                      >
+                        <defs>
+                          <linearGradient
+                            id={`grad-${item.managerId}`}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={item.color}
+                              stopOpacity="0.3"
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor={item.color}
+                              stopOpacity="0.0"
+                            />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Background guide lines for #1 and #8 */}
+                        <line
+                          x1="6"
+                          y1="4"
+                          x2="154"
+                          y2="4"
+                          stroke="rgba(0, 255, 135, 0.15)"
+                          strokeDasharray="2 2"
+                        />
+                        <line
+                          x1="6"
+                          y1="20"
+                          x2="154"
+                          y2="20"
+                          stroke="rgba(51, 65, 85, 0.2)"
+                          strokeDasharray="2 2"
+                        />
+
+                        {/* Gradient Area Fill */}
+                        {sparkline.area && (
+                          <path
+                            d={sparkline.area}
+                            fill={`url(#grad-${item.managerId})`}
+                          />
+                        )}
+
+                        {/* Ghost Full Path */}
+                        <path
+                          d={sparkline.line}
+                          fill="none"
+                          stroke={item.color}
+                          strokeWidth="1"
+                          opacity="0.25"
+                          strokeDasharray="2 2"
+                        />
+
+                        {/* Active Drawing Line */}
+                        <path
+                          d={sparkline.line}
+                          pathLength={1000}
+                          strokeDasharray={1000}
+                          strokeDashoffset={strokeOffset}
+                          fill="none"
+                          stroke={item.color}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{
+                            transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                          }}
+                        />
+
+                        {/* Active Head Dot */}
+                        <circle
+                          cx={sparkline.head.x}
+                          cy={sparkline.head.y}
+                          r="3"
+                          fill={item.color}
+                          stroke="#070A12"
+                          strokeWidth="1.5"
+                          style={{
+                            transition: `all ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                          }}
+                        />
+                      </svg>
+                    </div>
+
+                    {/* Gameweek Rank Breadcrumb Badges */}
+                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                      {gameweeks.map((gw) => {
+                        const gwData = trajectoryMap[item.managerId]?.[gw];
+                        if (!gwData) return null;
+                        const isCurrent = gw === currentGw;
+
+                        return (
+                          <span
+                            key={`form-${item.managerId}-gw-${gw}`}
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              isCurrent
+                                ? "bg-emerald-400 text-slate-950 font-black shadow-sm"
+                                : gw < currentGw
+                                ? "bg-slate-800 text-slate-300"
+                                : "bg-slate-900/50 text-slate-600 border border-slate-800"
+                            }`}
+                          >
+                            {gw === 0 ? "S" : `G${gw}`}:#{gwData.rank}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expanded Details Panel */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-1 border-t border-slate-800/80 bg-slate-900/40 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-center py-2">
+                      <div className="p-1.5 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                        <span className="block text-[9px] text-slate-400 uppercase font-bold">
+                          Best Rank
+                        </span>
+                        <span className="font-extrabold text-emerald-400">
+                          #{item.highestRank}
+                        </span>
+                      </div>
+
+                      <div className="p-1.5 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                        <span className="block text-[9px] text-slate-400 uppercase font-bold">
+                          Lowest Rank
+                        </span>
+                        <span className="font-extrabold text-rose-400">
+                          #{item.lowestRank}
+                        </span>
+                      </div>
+
+                      <div className="p-1.5 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                        <span className="block text-[9px] text-slate-400 uppercase font-bold">
+                          Best GW Score
+                        </span>
+                        <span className="font-extrabold text-white">
+                          {item.bestGwScore} pts
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                      <span>
+                        Net change since Start:{" "}
+                        <strong
+                          className={
+                            item.totalDelta > 0
+                              ? "text-emerald-400"
+                              : item.totalDelta < 0
+                              ? "text-rose-400"
+                              : "text-slate-300"
+                          }
+                        >
+                          {item.totalDelta > 0
+                            ? `+${item.totalDelta} ranks`
+                            : item.totalDelta < 0
+                            ? `${item.totalDelta} ranks`
+                            : "0 ranks"}
+                        </strong>
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedManagerId(
+                            selectedManagerId === item.managerId ? null : item.managerId
+                          );
+                        }}
+                        style={{ color: item.color }}
+                        className="font-bold underline cursor-pointer"
+                      >
+                        {selectedManagerId === item.managerId ? "Unfocus" : "Spotlight"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* DESKTOP VIEW: CLASSIC HORIZONTAL BUMP CHART (>= md screens)*/}
+      {/* ========================================================= */}
+      <div className="hidden md:block relative overflow-x-auto w-full">
         <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          viewBox={`0 0 ${dSvgWidth} ${dSvgHeight}`}
           className="w-full h-auto min-w-[720px] select-none"
         >
-          {/* Defs / Glow filter */}
           <defs>
-            <filter id="trail-glow" x="-30%" y="-30%" width="160%" height="160%">
+            <filter id="d-trail-glow" x="-30%" y="-30%" width="160%" height="160%">
               <feGaussianBlur stdDeviation="4" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            <filter id="head-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <filter id="d-head-glow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
@@ -250,21 +644,21 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
           {/* Horizontal Grid Lines (Ranks 1..N) */}
           {Array.from({ length: totalManagers }, (_, i) => i + 1).map((rank) => {
-            const y = getY(rank);
+            const y = getDesktopY(rank);
             const isFirst = rank === 1;
             return (
-              <g key={`grid-rank-${rank}`}>
+              <g key={`d-grid-rank-${rank}`}>
                 <line
-                  x1={padding.left}
+                  x1={dPadding.left}
                   y1={y}
-                  x2={padding.left + graphWidth}
+                  x2={dPadding.left + dGraphWidth}
                   y2={y}
                   stroke={isFirst ? "rgba(0, 255, 135, 0.2)" : "rgba(51, 65, 85, 0.25)"}
                   strokeDasharray="4 4"
                   strokeWidth={isFirst ? "1.5" : "1"}
                 />
                 <text
-                  x={padding.left - 12}
+                  x={dPadding.left - 12}
                   y={y + 4}
                   textAnchor="end"
                   fill={isFirst ? "#00FF87" : "#64748B"}
@@ -280,23 +674,23 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
           {/* Vertical Grid Lines (Gameweeks) */}
           {gameweeks.map((gw) => {
-            const x = getX(gw);
+            const x = getDesktopX(gw);
             const isCurrent = gw === currentGw;
 
             return (
-              <g key={`grid-gw-${gw}`}>
+              <g key={`d-grid-gw-${gw}`}>
                 <line
                   x1={x}
-                  y1={padding.top}
+                  y1={dPadding.top}
                   x2={x}
-                  y2={padding.top + graphHeight}
+                  y2={dPadding.top + dGraphHeight}
                   stroke="rgba(51, 65, 85, 0.2)"
                   strokeWidth="1"
                   strokeDasharray="3 3"
                 />
                 <text
                   x={x}
-                  y={padding.top + graphHeight + 22}
+                  y={dPadding.top + dGraphHeight + 22}
                   textAnchor="middle"
                   fill={isCurrent ? "#00FF87" : "#94A3B8"}
                   fontSize="11"
@@ -313,15 +707,15 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
             const isFocused = activeFocusId === p.id;
             const isDimmed = activeFocusId !== null && !isFocused;
-            const fullPath = generateFullPath(p.id);
+            const fullPath = generateDesktopFullPath(p.id);
             const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
             const currentData = trajectoryMap[p.id]?.[currentGw];
 
-            const currentHeadX = getX(currentGw);
-            const currentHeadY = getY(currentRank);
+            const currentHeadX = getDesktopX(currentGw);
+            const currentHeadY = getDesktopY(currentRank);
 
             return (
-              <g key={`path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
+              <g key={`d-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
                 {/* Faint Background Full Season Ghost Arc */}
                 <path
                   d={fullPath}
@@ -343,7 +737,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     stroke={color}
                     strokeWidth="9"
                     opacity="0.35"
-                    filter="url(#trail-glow)"
+                    filter="url(#d-trail-glow)"
                     style={{
                       transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                     }}
@@ -366,18 +760,18 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   }}
                 />
 
-                {/* Subtle Milestone Breadcrumb Dots Left Behind */}
+                {/* Milestone Breadcrumb Dots Left Behind */}
                 {gameweeks.map((gw) => {
                   const data = trajectoryMap[p.id]?.[gw];
                   if (!data) return null;
 
-                  const cx = getX(gw);
-                  const cy = getY(data.rank);
+                  const cx = getDesktopX(gw);
+                  const cy = getDesktopY(data.rank);
                   const isPast = gw < currentGw;
 
                   return (
                     <g
-                      key={`breadcrumb-${p.id}-gw-${gw}`}
+                      key={`d-breadcrumb-${p.id}-gw-${gw}`}
                       className="cursor-pointer"
                       style={{
                         opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
@@ -418,9 +812,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   );
                 })}
 
-                {/* THE BIG SLIDING DOT & ATTACHED LABEL (Glides smoothly with the trail) */}
+                {/* THE BIG SLIDING DOT & ATTACHED LABEL */}
                 <g
-                  key={`sliding-head-${p.id}`}
+                  key={`d-sliding-head-${p.id}`}
                   style={{
                     transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
                     transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
@@ -457,14 +851,13 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     )
                   }
                 >
-                  {/* Outer Glowing Ring for the Big Dot */}
                   <circle
                     cx={0}
                     cy={0}
                     r={isFocused ? 14 : 11}
                     fill={color}
                     opacity="0.25"
-                    filter="url(#head-glow)"
+                    filter="url(#d-head-glow)"
                   />
                   <circle
                     cx={0}
@@ -475,8 +868,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     strokeWidth={isFocused ? "2.5" : "2"}
                     opacity="0.8"
                   />
-
-                  {/* Main Big Dot Core */}
                   <circle
                     cx={0}
                     cy={0}
@@ -487,7 +878,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     className="transition-all duration-300"
                   />
 
-                  {/* Floating Attached Manager Label Pill */}
                   {currentData && (
                     <g transform="translate(14, 0)">
                       <rect
@@ -524,15 +914,15 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
           })}
         </svg>
 
-        {/* Floating Glassmorphic Interactive Tooltip */}
+        {/* Desktop Tooltip */}
         {tooltip && (
           <div
             style={{
               position: "absolute",
-              left: `${(tooltip.x / svgWidth) * 100}%`,
-              top: `${(tooltip.y / svgHeight) * 100}%`,
+              left: `${(tooltip.x / dSvgWidth) * 100}%`,
+              top: `${(tooltip.y / dSvgHeight) * 100}%`,
               transform:
-                tooltip.x > svgWidth * 0.65
+                tooltip.x > dSvgWidth * 0.65
                   ? "translate(-105%, -110%)"
                   : "translate(8%, -110%)",
             }}
@@ -558,10 +948,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 <span className="text-slate-400 block text-[9px] uppercase font-bold">
                   {tooltip.gameweek === 0 ? "Baseline Rank" : `GW ${tooltip.gameweek} Rank`}
                 </span>
-                <span
-                  className="font-black text-sm"
-                  style={{ color: tooltip.color }}
-                >
+                <span className="font-black text-sm" style={{ color: tooltip.color }}>
                   #{tooltip.rank}
                 </span>
                 {tooltip.prevRank && tooltip.prevRank !== tooltip.rank && (
@@ -577,18 +964,14 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 </span>
                 <span className="font-black text-white text-sm">
                   {tooltip.gwPoints}{" "}
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    pts
-                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">pts</span>
                 </span>
               </div>
             </div>
 
             <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
               <span>Cumulative Total</span>
-              <span className="font-black text-emerald-400">
-                {tooltip.cumNet} pts
-              </span>
+              <span className="font-black text-emerald-400">{tooltip.cumNet} pts</span>
             </div>
           </div>
         )}
