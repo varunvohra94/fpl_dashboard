@@ -423,23 +423,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   return (
     <div className="w-full space-y-3">
       {/* ========================================================= */}
-      {/* UNIFIED STREAMLINED TOP TOOLBAR WITH SPOTLIGHT DROPDOWN   */}
+      {/* MANAGER SELECTION SPOTLIGHT CAPSULE                       */}
       {/* ========================================================= */}
-      <div className="flex items-center justify-between gap-2 px-1 py-1">
-        {/* Left: Active Gameweek Status Badge */}
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#00FF87]" />
-          <div>
-            <span className="text-xs sm:text-sm font-extrabold text-white block leading-tight">
-              {currentGw === 0 ? "Pre-Season Baseline" : `GW ${currentGw} Race Horizon`}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium block">
-              Start → GW{safeMaxGw} • Live Rank Tracking
-            </span>
-          </div>
-        </div>
-
-        {/* Right: Custom Glassmorphic Spotlight Dropdown */}
+      <div className="flex items-center justify-end px-1 pb-0.5">
+        {/* Custom Glassmorphic Spotlight Dropdown */}
         <div ref={dropdownRef} className="relative">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
