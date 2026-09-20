@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, Sparkles, Trophy, Flame, X } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -53,6 +53,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
+  const [tierFilter, setTierFilter] = useState<"all" | "top4" | "bottom4">("all");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
@@ -180,8 +181,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     });
   }
 
-  const activeFocusId = selectedManagerId || hoveredManagerId;
-
   // Standings for current gameweek (for dropdown ordering)
   const currentLeaderboard = profiles
     .map((p, idx) => {
@@ -210,6 +209,20 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   const selectedRank = selectedManagerId
     ? trajectoryMap[selectedManagerId]?.[Math.round(currentGwFloat)]?.rank || 1
     : null;
+
+  // Compute focus logic considering tierFilter and selectedManagerId
+  const isManagerFocused = (managerId: number, rank: number) => {
+    if (hoveredManagerId !== null) return hoveredManagerId === managerId;
+    if (selectedManagerId !== null) return selectedManagerId === managerId;
+    if (tierFilter === "top4") return rank <= 4;
+    if (tierFilter === "bottom4") return rank >= 5;
+    return false; // 'all' mode: all managers are active (none dimmed)
+  };
+
+  const hasActiveFocus =
+    hoveredManagerId !== null ||
+    selectedManagerId !== null ||
+    tierFilter !== "all";
 
   // =========================================================
   // MOBILE: VERTICALLY LONGER SMOOTH ROLLING HORIZON ENGINE
@@ -422,25 +435,60 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   return (
     <div className="w-full space-y-3">
-      {/* ========================================================= */}
-      {/* UNIFIED STREAMLINED TOP TOOLBAR WITH SPOTLIGHT DROPDOWN   */}
-      {/* ========================================================= */}
-      <div className="flex items-center justify-between gap-2 px-1 py-1">
-        {/* Left: Active Gameweek Status Badge */}
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#00FF87]" />
-          <div>
-            <span className="text-xs sm:text-sm font-extrabold text-white block leading-tight">
-              {currentGw === 0 ? "Pre-Season Baseline" : `GW ${currentGw} Race Horizon`}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium block">
-              Start → GW{safeMaxGw} • Live Rank Tracking
-            </span>
-          </div>
+      {/* ========================================================================= */}
+      {/* OPTION 1: COMPACT SPOTLIGHT DROPDOWN + QUICK TIER PRESET CHIPS            */}
+      {/* ========================================================================= */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
+        {/* Quick Tier Preset Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <button
+            onClick={() => {
+              setTierFilter("all");
+              setSelectedManagerId(null);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none shrink-0 ${
+              tierFilter === "all" && selectedManagerId === null
+                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm"
+                : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>All ({totalManagers})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setTierFilter("top4");
+              setSelectedManagerId(null);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none shrink-0 ${
+              tierFilter === "top4" && selectedManagerId === null
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm"
+                : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span>Top 4 (Title Race)</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setTierFilter("bottom4");
+              setSelectedManagerId(null);
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none shrink-0 ${
+              tierFilter === "bottom4" && selectedManagerId === null
+                ? "bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm"
+                : "bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5 text-rose-400" />
+            <span>Mid & Drop (5-8)</span>
+          </button>
         </div>
 
-        {/* Right: Custom Glassmorphic Spotlight Dropdown */}
-        <div ref={dropdownRef} className="relative">
+        {/* Custom Glassmorphic Spotlight Dropdown */}
+        <div ref={dropdownRef} className="relative shrink-0">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             style={{
@@ -459,7 +507,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                   style={{ backgroundColor: selectedColor || "#00FF87" }}
                 />
-                <span className="truncate max-w-[110px] sm:max-w-[140px]">
+                <span className="truncate max-w-[100px] sm:max-w-[130px]">
                   {selectedManager.player_name}
                 </span>
                 <span
@@ -486,9 +534,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               </>
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>All Managers ({totalManagers})</span>
-                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+                <span>Manager ▾</span>
               </>
             )}
           </button>
@@ -497,27 +543,28 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
           {isDropdownOpen && (
             <div className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-slate-950/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl z-50 p-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between border-b border-slate-800/80 mb-1">
-                <span>Spotlight Manager</span>
-                <span className="text-[9px] text-emerald-400 lowercase font-normal">tap to highlight</span>
+                <span>Spotlight Single Manager</span>
+                <span className="text-[9px] text-emerald-400 lowercase font-normal">tap to lock</span>
               </div>
 
-              {/* Show All / Reset Option */}
+              {/* Show All Option */}
               <button
                 onClick={() => {
                   setSelectedManagerId(null);
+                  setTierFilter("all");
                   setHoveredManagerId(null);
                   setTooltip(null);
                   setIsDropdownOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  selectedManagerId === null
+                  selectedManagerId === null && tierFilter === "all"
                     ? "bg-slate-800 text-white"
                     : "text-slate-300 hover:bg-slate-900 hover:text-white"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Show All Managers</span>
+                  <span>Show All (No Spotlight)</span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-normal">8 lines</span>
               </button>
@@ -688,11 +735,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 {/* Manager Trajectory Curves */}
                 {profiles.map((p, idx) => {
                   const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-                  const isFocused = activeFocusId === p.id;
-                  const isDimmed = activeFocusId !== null && !isFocused;
+                  const currentPos = getMobileCurrentPos(p.id);
+                  const isFocused = isManagerFocused(p.id, currentPos.rank);
+                  const isDimmed = hasActiveFocus && !isFocused;
                   const fullPath = generateMobileFullPath(p.id);
                   const activePath = generateMobileActivePath(p.id);
-                  const currentPos = getMobileCurrentPos(p.id);
                   const currentData = trajectoryMap[p.id]?.[Math.round(currentGwFloat)];
 
                   return (
@@ -1017,11 +1064,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
           {/* Manager Trajectory Curves */}
           {profiles.map((p, idx) => {
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-            const isFocused = activeFocusId === p.id;
-            const isDimmed = activeFocusId !== null && !isFocused;
+            const currentPos = getDesktopCurrentPos(p.id);
+            const isFocused = isManagerFocused(p.id, currentPos.rank);
+            const isDimmed = hasActiveFocus && !isFocused;
             const fullPath = generateDesktopFullPath(p.id);
             const activePath = generateDesktopActivePath(p.id);
-            const currentPos = getDesktopCurrentPos(p.id);
             const currentData = trajectoryMap[p.id]?.[Math.round(currentGwFloat)];
 
             return (
