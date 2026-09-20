@@ -162,27 +162,34 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Broadcast Camera Auto-Scroll Tracking for Mobile Screens
+  // Broadcast Camera Auto-Scroll Tracking for Mobile Screens (Right-Aligned Focus)
   useEffect(() => {
     if (!scrollContainerRef.current) return;
     const container = scrollContainerRef.current;
-
-    // Position of active gameweek in SVG coordinates
-    const headXInSvg = getX(currentGw);
-
-    // Offset for trailing label pill attached to the sliding dot
-    const focusXInSvg = headXInSvg + (currentGw === 0 ? 0 : 50);
 
     const svgElement = container.querySelector("svg");
     if (!svgElement) return;
 
     const renderedWidth = svgElement.getBoundingClientRect().width;
     const scaleRatio = renderedWidth / svgWidth;
-    const targetPixelX = focusXInSvg * scaleRatio;
     const viewportWidth = container.clientWidth;
+    const maxScroll = Math.max(0, container.scrollWidth - viewportWidth);
 
-    // Center active gameweek dot inside viewport
-    const scrollTarget = Math.max(0, targetPixelX - viewportWidth / 2);
+    if (maxScroll <= 0) return; // Full chart fits on screen (e.g. desktop), no scroll needed
+
+    // Position of active gameweek + attached manager label pill in SVG coordinates
+    const headXInSvg = getX(currentGw);
+    // Dot + attached label pill extends ~150px to the right of getX(gw)
+    const pillRightEdgeSvg = headXInSvg + 150;
+    const pillRightPixelX = pillRightEdgeSvg * scaleRatio;
+
+    // Align active dots & pill near the right edge of viewport with a 20px margin,
+    // keeping historical trail lines visible on the left side
+    const rightMargin = 20;
+    const scrollTarget = Math.min(
+      maxScroll,
+      Math.max(0, pillRightPixelX - viewportWidth + rightMargin)
+    );
 
     container.scrollTo({
       left: scrollTarget,
