@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -52,7 +53,23 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 }) => {
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Smooth Parametric Animation State
   const [animProgress, setAnimProgress] = useState(1);
@@ -165,6 +182,35 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   const activeFocusId = selectedManagerId || hoveredManagerId;
 
+  // Standings for current gameweek (for dropdown ordering)
+  const currentLeaderboard = profiles
+    .map((p, idx) => {
+      const activeGwRound = Math.round(currentGwFloat);
+      const data = trajectoryMap[p.id]?.[activeGwRound];
+      const rank = data?.rank || idx + 1;
+      const points = data?.points || 0;
+      const cumNet = data?.cumNet || 0;
+      const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+
+      return {
+        managerId: p.id,
+        playerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
+        rank,
+        points,
+        cumNet,
+        color,
+      };
+    })
+    .sort((a, b) => a.rank - b.rank);
+
+  const selectedManager = profiles.find((p) => p.id === selectedManagerId);
+  const selectedIdx = profiles.findIndex((p) => p.id === selectedManagerId);
+  const selectedColor = selectedIdx >= 0 ? TRAIL_COLORS[selectedIdx % TRAIL_COLORS.length] : null;
+  const selectedRank = selectedManagerId
+    ? trajectoryMap[selectedManagerId]?.[Math.round(currentGwFloat)]?.rank || 1
+    : null;
+
   // =========================================================
   // MOBILE: VERTICALLY LONGER SMOOTH ROLLING HORIZON ENGINE
   // =========================================================
@@ -201,7 +247,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     const xNext = getMobileX(nextGw);
     const yNext = getMobileY(rankNext);
 
-    // Hermite S-curve interpolation (exact Bézier geometry)
     const smoothF = 3 * f * f - 2 * f * f * f;
     const curX = xK + (xNext - xK) * f;
     const curY = yK + (yNext - yK) * smoothF;
@@ -233,7 +278,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
       path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
     }
 
-    // If mid-transition, append live segment locked to moving dot
     if (f > 0.0001 && k < safeMaxGw) {
       const pLast = points[points.length - 1];
       const curPos = getMobileCurrentPos(managerId);
@@ -377,67 +421,162 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   };
 
   return (
-    <div className="w-full space-y-4">
-      {/* Legend / Filter Pills */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
-          {profiles.map((p, idx) => {
-            const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-            const isFocused = activeFocusId === p.id;
-            const isDimmed = activeFocusId !== null && !isFocused;
-            const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
+    <div className="w-full space-y-3">
+      {/* ========================================================= */}
+      {/* UNIFIED STREAMLINED TOP TOOLBAR WITH SPOTLIGHT DROPDOWN   */}
+      {/* ========================================================= */}
+      <div className="flex items-center justify-between gap-2 px-1 py-1">
+        {/* Left: Active Gameweek Status Badge */}
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#00FF87]" />
+          <div>
+            <span className="text-xs sm:text-sm font-extrabold text-white block leading-tight">
+              {currentGw === 0 ? "Pre-Season Baseline" : `GW ${currentGw} Race Horizon`}
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium block">
+              Start → GW{safeMaxGw} • Live Rank Tracking
+            </span>
+          </div>
+        </div>
 
-            return (
-              <button
-                key={p.id}
-                onMouseEnter={() => setHoveredManagerId(p.id)}
-                onMouseLeave={() => setHoveredManagerId(null)}
-                onClick={() =>
-                  setSelectedManagerId(selectedManagerId === p.id ? null : p.id)
-                }
-                style={{
-                  borderColor: isFocused ? color : undefined,
-                  boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                  isFocused
-                    ? "bg-slate-800 text-white"
-                    : isDimmed
-                    ? "bg-slate-950/40 text-slate-600 border-slate-900 opacity-35"
-                    : "bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700"
-                }`}
-              >
+        {/* Right: Custom Glassmorphic Spotlight Dropdown */}
+        <div ref={dropdownRef} className="relative">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            style={{
+              borderColor: selectedColor ? selectedColor : undefined,
+              boxShadow: selectedColor ? `0 0 14px ${selectedColor}35` : undefined,
+            }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none ${
+              selectedManager
+                ? "bg-slate-900 text-white"
+                : "bg-slate-950/90 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white"
+            }`}
+          >
+            {selectedManager ? (
+              <>
                 <div
                   className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                  style={{ backgroundColor: color }}
+                  style={{ backgroundColor: selectedColor || "#00FF87" }}
                 />
-                <span className="truncate max-w-[100px] sm:max-w-[120px]">{p.player_name}</span>
+                <span className="truncate max-w-[110px] sm:max-w-[140px]">
+                  {selectedManager.player_name}
+                </span>
                 <span
                   className="text-[10px] font-black px-1.5 py-0.5 rounded"
                   style={{
-                    backgroundColor: `${color}20`,
-                    color: color,
+                    backgroundColor: `${selectedColor}25`,
+                    color: selectedColor || "#00FF87",
                   }}
                 >
-                  #{currentRank}
+                  #{selectedRank}
                 </span>
-              </button>
-            );
-          })}
-        </div>
-
-        {activeFocusId && (
-          <button
-            onClick={() => {
-              setSelectedManagerId(null);
-              setHoveredManagerId(null);
-              setTooltip(null);
-            }}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer shadow-sm shrink-0"
-          >
-            Clear Filter
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedManagerId(null);
+                    setHoveredManagerId(null);
+                    setTooltip(null);
+                  }}
+                  className="hover:bg-slate-800 p-0.5 rounded text-slate-400 hover:text-white transition-colors"
+                  title="Clear Spotlight"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>All Managers ({totalManagers})</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+              </>
+            )}
           </button>
-        )}
+
+          {/* Floating Dropdown Menu */}
+          {isDropdownOpen && (
+            <div className="absolute right-0 top-full mt-2 w-64 rounded-2xl bg-slate-950/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl z-50 p-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between border-b border-slate-800/80 mb-1">
+                <span>Spotlight Manager</span>
+                <span className="text-[9px] text-emerald-400 lowercase font-normal">tap to highlight</span>
+              </div>
+
+              {/* Show All / Reset Option */}
+              <button
+                onClick={() => {
+                  setSelectedManagerId(null);
+                  setHoveredManagerId(null);
+                  setTooltip(null);
+                  setIsDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedManagerId === null
+                    ? "bg-slate-800 text-white"
+                    : "text-slate-300 hover:bg-slate-900 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Show All Managers</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-normal">8 lines</span>
+              </button>
+
+              <div className="my-1 border-t border-slate-800/60" />
+
+              {/* Managers in Active Rank Order */}
+              <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
+                {currentLeaderboard.map((item) => {
+                  const isSelected = selectedManagerId === item.managerId;
+                  const isFirst = item.rank === 1;
+
+                  return (
+                    <button
+                      key={`drop-${item.managerId}`}
+                      onClick={() => {
+                        setSelectedManagerId(item.managerId);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-slate-800 text-white"
+                          : "text-slate-300 hover:bg-slate-900/80 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`text-[10px] font-black px-1.5 py-0.5 rounded shrink-0 ${
+                            isFirst
+                              ? "bg-emerald-400/20 text-emerald-400"
+                              : "bg-slate-850 text-slate-300 border border-slate-800"
+                          }`}
+                        >
+                          #{item.rank}
+                        </span>
+                        <div
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <div className="truncate text-left">
+                          <span className="block truncate leading-tight">
+                            {item.playerName}
+                          </span>
+                          <span className="block text-[9px] text-slate-400 truncate font-normal">
+                            {item.teamName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-black text-emerald-400 shrink-0 ml-2">
+                        {item.cumNet} pts
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ========================================================================= */}
