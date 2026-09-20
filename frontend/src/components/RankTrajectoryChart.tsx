@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -39,6 +39,11 @@ const TRAIL_COLORS = [
   "#E11D48", // Crimson
 ];
 
+// Smooth cubic bezier easing for organic motion
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
   currentGw,
@@ -49,11 +54,56 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
+  // Smooth Parametric Animation State
+  const [animProgress, setAnimProgress] = useState(1);
+  const [animFromGw, setAnimFromGw] = useState(currentGw);
+  const [animToGw, setAnimToGw] = useState(currentGw);
+  const prevGwRef = useRef(currentGw);
+
+  useEffect(() => {
+    if (prevGwRef.current === currentGw) return;
+    const from = prevGwRef.current;
+    const to = currentGw;
+    prevGwRef.current = currentGw;
+
+    setAnimFromGw(from);
+    setAnimToGw(to);
+    setAnimProgress(0);
+
+    const durationMs = parseInt(transitionDuration) || 1600;
+    const startTime = performance.now();
+    let animationFrameId: number;
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const rawProgress = Math.min(1, elapsed / durationMs);
+      const eased = easeInOutCubic(rawProgress);
+
+      setAnimProgress(eased);
+
+      if (rawProgress < 1) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        setAnimProgress(1);
+        setAnimFromGw(to);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [currentGw, transitionDuration]);
+
   if (!profiles || profiles.length === 0) return null;
 
   const totalManagers = profiles.length;
   const safeMaxGw = Math.max(maxGw, 1);
   const gameweeks = Array.from({ length: safeMaxGw + 1 }, (_, i) => i); // [0, 1, 2, ..., safeMaxGw]
+
+  // Continuous floating gameweek progress
+  const currentGwFloat = animFromGw + (animToGw - animFromGw) * animProgress;
 
   // 1. Calculate cumulative net points and mini-league rank for EVERY manager at EVERY gameweek (starting from GW 0)
   const trajectoryMap: Record<
@@ -133,10 +183,40 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return mPadding.top + ((rank - 1) / (totalManagers - 1)) * mGraphHeight;
   };
 
-  // Generate exact active path (0 to currentGw) for mobile
+  // Parametric position calculation for Mobile (Dot follows exact Hermite S-Curve)
+  const getMobileCurrentPos = (managerId: number) => {
+    const k = Math.floor(currentGwFloat);
+    const f = currentGwFloat - k;
+
+    const rankK = trajectoryMap[managerId]?.[k]?.rank || 1;
+    const xK = getMobileX(k);
+    const yK = getMobileY(rankK);
+
+    if (f <= 0.0001 || k >= safeMaxGw) {
+      return { x: xK, y: yK, rank: rankK };
+    }
+
+    const nextGw = Math.min(safeMaxGw, k + 1);
+    const rankNext = trajectoryMap[managerId]?.[nextGw]?.rank || rankK;
+    const xNext = getMobileX(nextGw);
+    const yNext = getMobileY(rankNext);
+
+    // Hermite S-curve interpolation (exact Bézier geometry)
+    const smoothF = 3 * f * f - 2 * f * f * f;
+    const curX = xK + (xNext - xK) * f;
+    const curY = yK + (yNext - yK) * smoothF;
+    const curRank = f < 0.5 ? rankK : rankNext;
+
+    return { x: curX, y: curY, rank: curRank };
+  };
+
+  // Generate exact active path up to current live position for mobile
   const generateMobileActivePath = (managerId: number) => {
+    const k = Math.floor(currentGwFloat);
+    const f = currentGwFloat - k;
+
     const points: { x: number; y: number }[] = [];
-    for (let gw = 0; gw <= currentGw; gw++) {
+    for (let gw = 0; gw <= k; gw++) {
       const data = trajectoryMap[managerId]?.[gw];
       if (data) {
         points.push({ x: getMobileX(gw), y: getMobileY(data.rank) });
@@ -144,19 +224,27 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     }
 
     if (points.length === 0) return "";
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
     let path = `M ${points[0].x} ${points[0].y}`;
+
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i];
       const p1 = points[i + 1];
       const cx = (p0.x + p1.x) / 2;
       path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
     }
+
+    // If mid-transition, append live segment locked to moving dot
+    if (f > 0.0001 && k < safeMaxGw) {
+      const pLast = points[points.length - 1];
+      const curPos = getMobileCurrentPos(managerId);
+      const cx = (pLast.x + curPos.x) / 2;
+      path += ` C ${cx} ${pLast.y}, ${cx} ${curPos.y}, ${curPos.x} ${curPos.y}`;
+    }
+
     return path;
   };
 
-  // Generate full season path (0 to safeMaxGw) for ghost guideline on mobile
+  // Generate full season path for ghost guideline on mobile
   const generateMobileFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
     for (let gw = 0; gw <= safeMaxGw; gw++) {
@@ -180,9 +268,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   };
 
   // Continuous slide offset calculation:
-  // Keeps the active dots and player name labels (~110px pill width) smoothly positioned on the right of the screen
+  // Keeps the active dots and player name labels smoothly positioned on the right of the screen
   const pillWidth = 110;
-  const activeDotX = getMobileX(currentGw);
+  const activeDotX = getMobileX(currentGwFloat);
   const activeRightEdge = activeDotX + pillWidth + 14;
   const mobileViewportRight = mSvgWidth - mPadding.right;
   const mobileSlideOffset = Math.max(0, activeRightEdge - mobileViewportRight);
@@ -206,10 +294,39 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return dPadding.top + ((rank - 1) / (totalManagers - 1)) * dGraphHeight;
   };
 
-  // Generate exact active path (0 to currentGw) for desktop
+  // Parametric position calculation for Desktop
+  const getDesktopCurrentPos = (managerId: number) => {
+    const k = Math.floor(currentGwFloat);
+    const f = currentGwFloat - k;
+
+    const rankK = trajectoryMap[managerId]?.[k]?.rank || 1;
+    const xK = getDesktopX(k);
+    const yK = getDesktopY(rankK);
+
+    if (f <= 0.0001 || k >= safeMaxGw) {
+      return { x: xK, y: yK, rank: rankK };
+    }
+
+    const nextGw = Math.min(safeMaxGw, k + 1);
+    const rankNext = trajectoryMap[managerId]?.[nextGw]?.rank || rankK;
+    const xNext = getDesktopX(nextGw);
+    const yNext = getDesktopY(rankNext);
+
+    const smoothF = 3 * f * f - 2 * f * f * f;
+    const curX = xK + (xNext - xK) * f;
+    const curY = yK + (yNext - yK) * smoothF;
+    const curRank = f < 0.5 ? rankK : rankNext;
+
+    return { x: curX, y: curY, rank: curRank };
+  };
+
+  // Generate exact active path up to current live position for desktop
   const generateDesktopActivePath = (managerId: number) => {
+    const k = Math.floor(currentGwFloat);
+    const f = currentGwFloat - k;
+
     const points: { x: number; y: number }[] = [];
-    for (let gw = 0; gw <= currentGw; gw++) {
+    for (let gw = 0; gw <= k; gw++) {
       const data = trajectoryMap[managerId]?.[gw];
       if (data) {
         points.push({ x: getDesktopX(gw), y: getDesktopY(data.rank) });
@@ -217,19 +334,26 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     }
 
     if (points.length === 0) return "";
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
     let path = `M ${points[0].x} ${points[0].y}`;
+
     for (let i = 0; i < points.length - 1; i++) {
       const p0 = points[i];
       const p1 = points[i + 1];
       const cx = (p0.x + p1.x) / 2;
       path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
     }
+
+    if (f > 0.0001 && k < safeMaxGw) {
+      const pLast = points[points.length - 1];
+      const curPos = getDesktopCurrentPos(managerId);
+      const cx = (pLast.x + curPos.x) / 2;
+      path += ` C ${cx} ${pLast.y}, ${cx} ${curPos.y}, ${curPos.x} ${curPos.y}`;
+    }
+
     return path;
   };
 
-  // Generate full season path (0 to safeMaxGw) for ghost guideline on desktop
+  // Generate full season path for ghost guideline on desktop
   const generateDesktopFullPath = (managerId: number) => {
     const points: { x: number; y: number }[] = [];
     for (let gw = 0; gw <= safeMaxGw; gw++) {
@@ -351,24 +475,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   height={mSvgHeight}
                 />
               </clipPath>
-
-              {/* Progressive dynamic clip paths for each manager: tracks dot position during transitions */}
-              {profiles.map((p) => {
-                const headX = getMobileX(currentGw);
-                return (
-                  <clipPath key={`m-trail-clip-${p.id}`} id={`m-trail-clip-${p.id}`}>
-                    <rect
-                      x={0}
-                      y={0}
-                      width={headX + 2}
-                      height={mSvgHeight}
-                      style={{
-                        transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
-                      }}
-                    />
-                  </clipPath>
-                );
-              })}
             </defs>
 
             {/* STATIC FIXED HORIZONTAL GRID LINES (#1 to #8) */}
@@ -408,13 +514,12 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               <g
                 style={{
                   transform: `translateX(-${mobileSlideOffset}px)`,
-                  transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
                 }}
               >
                 {/* Vertical Gameweek Lines & Labels */}
                 {gameweeks.map((gw) => {
                   const x = getMobileX(gw);
-                  const isCurrent = gw === currentGw;
+                  const isCurrent = Math.round(currentGwFloat) === gw;
 
                   return (
                     <g key={`m-gw-col-${gw}`}>
@@ -448,11 +553,8 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   const isDimmed = activeFocusId !== null && !isFocused;
                   const fullPath = generateMobileFullPath(p.id);
                   const activePath = generateMobileActivePath(p.id);
-                  const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
-                  const currentData = trajectoryMap[p.id]?.[currentGw];
-
-                  const currentHeadX = getMobileX(currentGw);
-                  const currentHeadY = getMobileY(currentRank);
+                  const currentPos = getMobileCurrentPos(p.id);
+                  const currentData = trajectoryMap[p.id]?.[Math.round(currentGwFloat)];
 
                   return (
                     <g key={`m-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
@@ -466,33 +568,30 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         opacity="0.16"
                       />
 
-                      {/* Active Trail Group (Synchronized with Dot Motion via dynamic clipping) */}
-                      <g clipPath={`url(#m-trail-clip-${p.id})`}>
-                        {/* Glowing focus aura */}
-                        {isFocused && (
-                          <path
-                            d={activePath}
-                            fill="none"
-                            stroke={color}
-                            strokeWidth="9"
-                            opacity="0.35"
-                            filter="url(#m-trail-glow)"
-                          />
-                        )}
-
-                        {/* Continuous active trail line (Progressively created by the moving dot) */}
+                      {/* Glowing focus aura (100% Locked to moving dot) */}
+                      {isFocused && (
                         <path
                           d={activePath}
                           fill="none"
                           stroke={color}
-                          strokeWidth={isFocused ? "4.5" : "2.5"}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{
-                            transition: "stroke-width 300ms ease",
-                          }}
+                          strokeWidth="9"
+                          opacity="0.35"
+                          filter="url(#m-trail-glow)"
                         />
-                      </g>
+                      )}
+
+                      {/* Continuous active trail line (Created dynamically as dot glides) */}
+                      <path
+                        d={activePath}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={isFocused ? "4.5" : "2.5"}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          transition: "stroke-width 300ms ease",
+                        }}
+                      />
 
                       {/* Breadcrumbs */}
                       {gameweeks.map((gw) => {
@@ -501,7 +600,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
                         const cx = getMobileX(gw);
                         const cy = getMobileY(data.rank);
-                        const isPast = gw < currentGw;
+                        const isPast = gw <= currentGwFloat;
 
                         return (
                           <g
@@ -509,7 +608,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                             className="cursor-pointer"
                             style={{
                               opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
-                              transition: `opacity ${transitionDuration} ease`,
+                              transition: "opacity 300ms ease",
                             }}
                             onClick={() => {
                               setHoveredManagerId(p.id);
@@ -542,12 +641,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         );
                       })}
 
-                      {/* BIG SLIDING HEAD DOT & PLAYER NAME PILL ON THE RIGHT */}
+                      {/* BIG SLIDING HEAD DOT & PLAYER NAME PILL (Locked along exact S-curve) */}
                       <g
                         key={`m-head-${p.id}`}
                         style={{
-                          transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
-                          transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                          transform: `translate(${currentPos.x}px, ${currentPos.y}px)`,
                           zIndex: isFocused ? 50 : 20,
                         }}
                         className="cursor-pointer select-none"
@@ -559,16 +657,16 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                             setTooltip({
                               managerName: p.player_name || "Manager",
                               teamName: p.entry_name || "Squad",
-                              gameweek: currentGw,
-                              rank: currentData.rank,
+                              gameweek: Math.round(currentGwFloat),
+                              rank: currentPos.rank,
                               prevRank:
-                                currentGw > 0
-                                  ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
+                                Math.round(currentGwFloat) > 0
+                                  ? trajectoryMap[p.id]?.[Math.round(currentGwFloat) - 1]?.rank
                                   : undefined,
                               gwPoints: currentData.points,
                               cumNet: currentData.cumNet,
-                              x: currentHeadX - mobileSlideOffset,
-                              y: currentHeadY,
+                              x: currentPos.x - mobileSlideOffset,
+                              y: currentPos.y,
                               color,
                             });
                           }
@@ -628,7 +726,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                               fontWeight="800"
                               className="truncate"
                             >
-                              {p.player_name.split(" ")[0]} (#{currentData.rank})
+                              {p.player_name.split(" ")[0]} (#{currentPos.rank})
                             </text>
                           </g>
                         )}
@@ -715,24 +813,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-
-            {/* Desktop Progressive dynamic clip paths */}
-            {profiles.map((p) => {
-              const headX = getDesktopX(currentGw);
-              return (
-                <clipPath key={`d-trail-clip-${p.id}`} id={`d-trail-clip-${p.id}`}>
-                  <rect
-                    x={0}
-                    y={0}
-                    width={headX + 2}
-                    height={dSvgHeight}
-                    style={{
-                      transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
-                    }}
-                  />
-                </clipPath>
-              );
-            })}
           </defs>
 
           {/* Horizontal Grid Lines (Ranks 1..N) */}
@@ -768,7 +848,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
           {/* Vertical Grid Lines (Gameweeks) */}
           {gameweeks.map((gw) => {
             const x = getDesktopX(gw);
-            const isCurrent = gw === currentGw;
+            const isCurrent = Math.round(currentGwFloat) === gw;
 
             return (
               <g key={`d-grid-gw-${gw}`}>
@@ -802,11 +882,8 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             const isDimmed = activeFocusId !== null && !isFocused;
             const fullPath = generateDesktopFullPath(p.id);
             const activePath = generateDesktopActivePath(p.id);
-            const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
-            const currentData = trajectoryMap[p.id]?.[currentGw];
-
-            const currentHeadX = getDesktopX(currentGw);
-            const currentHeadY = getDesktopY(currentRank);
+            const currentPos = getDesktopCurrentPos(p.id);
+            const currentData = trajectoryMap[p.id]?.[Math.round(currentGwFloat)];
 
             return (
               <g key={`d-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
@@ -820,33 +897,30 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   opacity="0.18"
                 />
 
-                {/* Active Trail Group (Synchronized with Dot Motion via dynamic clipping) */}
-                <g clipPath={`url(#d-trail-clip-${p.id})`}>
-                  {/* Glowing Focus Aura along active path */}
-                  {isFocused && (
-                    <path
-                      d={activePath}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth="9"
-                      opacity="0.35"
-                      filter="url(#d-trail-glow)"
-                    />
-                  )}
-
-                  {/* Continuous Drawing Active Trail Line */}
+                {/* Glowing Focus Aura along active path */}
+                {isFocused && (
                   <path
                     d={activePath}
                     fill="none"
                     stroke={color}
-                    strokeWidth={isFocused ? "4.5" : "2.5"}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      transition: "stroke-width 300ms ease",
-                    }}
+                    strokeWidth="9"
+                    opacity="0.35"
+                    filter="url(#d-trail-glow)"
                   />
-                </g>
+                )}
+
+                {/* Continuous Drawing Active Trail Line */}
+                <path
+                  d={activePath}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={isFocused ? "4.5" : "2.5"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transition: "stroke-width 300ms ease",
+                  }}
+                />
 
                 {/* Milestone Breadcrumb Dots Left Behind */}
                 {gameweeks.map((gw) => {
@@ -855,7 +929,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
                   const cx = getDesktopX(gw);
                   const cy = getDesktopY(data.rank);
-                  const isPast = gw < currentGw;
+                  const isPast = gw <= currentGwFloat;
 
                   return (
                     <g
@@ -863,7 +937,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       className="cursor-pointer"
                       style={{
                         opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
-                        transition: `opacity ${transitionDuration} ease`,
+                        transition: "opacity 300ms ease",
                       }}
                       onMouseEnter={() => {
                         setHoveredManagerId(p.id);
@@ -904,8 +978,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 <g
                   key={`d-sliding-head-${p.id}`}
                   style={{
-                    transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
-                    transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                    transform: `translate(${currentPos.x}px, ${currentPos.y}px)`,
                     zIndex: isFocused ? 50 : 20,
                   }}
                   className="cursor-pointer select-none"
@@ -915,16 +988,16 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       setTooltip({
                         managerName: p.player_name || "Manager",
                         teamName: p.entry_name || "Squad",
-                        gameweek: currentGw,
-                        rank: currentData.rank,
+                        gameweek: Math.round(currentGwFloat),
+                        rank: currentPos.rank,
                         prevRank:
-                          currentGw > 0
-                            ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
+                          Math.round(currentGwFloat) > 0
+                            ? trajectoryMap[p.id]?.[Math.round(currentGwFloat) - 1]?.rank
                             : undefined,
                         gwPoints: currentData.points,
                         cumNet: currentData.cumNet,
-                        x: currentHeadX,
-                        y: currentHeadY,
+                        x: currentPos.x,
+                        y: currentPos.y,
                         color,
                       });
                     }
@@ -971,7 +1044,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       <rect
                         x={-2}
                         y={-10}
-                        width="130"
+                        width={130}
                         height="20"
                         rx="6"
                         fill="#070A12"
@@ -992,7 +1065,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         fontWeight="800"
                         className="truncate"
                       >
-                        {p.player_name.split(" ")[0]} (#{currentData.rank})
+                        {p.player_name.split(" ")[0]} (#{currentPos.rank})
                       </text>
                     </g>
                   )}
