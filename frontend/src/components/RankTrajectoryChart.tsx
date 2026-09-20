@@ -113,10 +113,10 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     });
   }
 
-  // 2. SVG Dimensions and Coordinates
-  const svgWidth = 860;
-  const svgHeight = Math.max(300, totalManagers * 40 + 40);
-  const padding = { top: 35, right: 150, bottom: 45, left: 60 };
+  // 2. SVG Dimensions and Coordinates (Auto-Fit 100% width)
+  const svgWidth = 680;
+  const svgHeight = Math.max(300, totalManagers * 38 + 50);
+  const padding = { top: 28, right: 36, bottom: 36, left: 42 };
   const graphWidth = svgWidth - padding.left - padding.right;
   const graphHeight = svgHeight - padding.top - padding.bottom;
 
@@ -160,11 +160,37 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   const activeFocusId = selectedManagerId || hoveredManagerId;
 
+  // 3. Current Gameweek Dynamic Leaderboard Standings (Sorted in real-time)
+  const currentLeaderboard = profiles
+    .map((p, idx) => {
+      const data = trajectoryMap[p.id]?.[currentGw];
+      const prevData = currentGw > 0 ? trajectoryMap[p.id]?.[currentGw - 1] : undefined;
+      const rank = data?.rank || idx + 1;
+      const prevRank = prevData?.rank || rank;
+      const points = data?.points || 0;
+      const cumNet = data?.cumNet || 0;
+      const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+      const rankDelta = prevRank - rank; // positive = moved up, negative = dropped
+
+      return {
+        managerId: p.id,
+        playerName: p.player_name || "Manager",
+        teamName: p.entry_name || "Squad",
+        rank,
+        prevRank,
+        rankDelta,
+        points,
+        cumNet,
+        color,
+      };
+    })
+    .sort((a, b) => a.rank - b.rank);
+
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-5">
       {/* Legend / Filter Pills */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {profiles.map((p, idx) => {
             const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
             const isFocused = activeFocusId === p.id;
@@ -183,7 +209,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   borderColor: isFocused ? color : undefined,
                   boxShadow: isFocused ? `0 0 14px ${color}40` : undefined,
                 }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                   isFocused
                     ? "bg-slate-800 text-white"
                     : isDimmed
@@ -195,7 +221,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
                   style={{ backgroundColor: color }}
                 />
-                <span className="truncate max-w-[110px]">{p.player_name}</span>
+                <span className="truncate max-w-[100px] sm:max-w-[120px]">{p.player_name}</span>
                 <span
                   className="text-[10px] font-black px-1.5 py-0.5 rounded"
                   style={{
@@ -224,11 +250,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
         )}
       </div>
 
-      {/* SVG Bump Chart Canvas */}
-      <div className="relative overflow-x-auto w-full">
+      {/* SVG Bump Chart Canvas (100% Full-Width Responsive Auto-Fit) */}
+      <div className="relative w-full overflow-hidden rounded-2xl bg-slate-950/40 border border-slate-800/60 p-2 sm:p-4">
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full h-auto min-w-[720px] select-none"
+          className="w-full h-auto select-none block"
         >
           {/* Defs / Glow filter */}
           <defs>
@@ -264,11 +290,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   strokeWidth={isFirst ? "1.5" : "1"}
                 />
                 <text
-                  x={padding.left - 12}
+                  x={padding.left - 10}
                   y={y + 4}
                   textAnchor="end"
                   fill={isFirst ? "#00FF87" : "#64748B"}
-                  fontSize="11"
+                  fontSize="10"
                   fontWeight={isFirst ? "900" : "700"}
                   className="tabular-nums"
                 >
@@ -290,19 +316,19 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   y1={padding.top}
                   x2={x}
                   y2={padding.top + graphHeight}
-                  stroke="rgba(51, 65, 85, 0.2)"
-                  strokeWidth="1"
-                  strokeDasharray="3 3"
+                  stroke={isCurrent ? "rgba(0, 255, 135, 0.3)" : "rgba(51, 65, 85, 0.2)"}
+                  strokeWidth={isCurrent ? "1.5" : "1"}
+                  strokeDasharray={isCurrent ? undefined : "3 3"}
                 />
                 <text
                   x={x}
-                  y={padding.top + graphHeight + 22}
+                  y={padding.top + graphHeight + 18}
                   textAnchor="middle"
                   fill={isCurrent ? "#00FF87" : "#94A3B8"}
-                  fontSize="11"
+                  fontSize="10"
                   fontWeight={isCurrent ? "900" : "700"}
                 >
-                  {gw === 0 ? "Start" : `GW ${gw}`}
+                  {gw === 0 ? "Start" : `GW${gw}`}
                 </text>
               </g>
             );
@@ -358,7 +384,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   strokeDashoffset={strokeOffset}
                   fill="none"
                   stroke={color}
-                  strokeWidth={isFocused ? "4.5" : "2.5"}
+                  strokeWidth={isFocused ? "4" : "2.2"}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   style={{
@@ -366,7 +392,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   }}
                 />
 
-                {/* Subtle Milestone Breadcrumb Dots Left Behind */}
+                {/* Milestone Breadcrumb Dots Left Behind */}
                 {gameweeks.map((gw) => {
                   const data = trajectoryMap[p.id]?.[gw];
                   if (!data) return null;
@@ -409,7 +435,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       <circle
                         cx={cx}
                         cy={cy}
-                        r="3.5"
+                        r="3"
                         fill="#070A12"
                         stroke={color}
                         strokeWidth="1.5"
@@ -418,7 +444,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   );
                 })}
 
-                {/* THE BIG SLIDING DOT & ATTACHED LABEL (Glides smoothly with the trail) */}
+                {/* THE BIG SLIDING HEAD DOT (With inner rank number) */}
                 <g
                   key={`sliding-head-${p.id}`}
                   style={{
@@ -457,60 +483,54 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                     )
                   }
                 >
-                  {/* Outer Glowing Ring for the Big Dot */}
+                  {/* Outer Glowing Ring */}
                   <circle
                     cx={0}
                     cy={0}
-                    r={isFocused ? 14 : 11}
+                    r={isFocused ? 14 : 10}
                     fill={color}
-                    opacity="0.25"
+                    opacity="0.3"
                     filter="url(#head-glow)"
                   />
                   <circle
                     cx={0}
                     cy={0}
-                    r={isFocused ? 10.5 : 8.5}
+                    r={isFocused ? 10 : 8}
                     fill="none"
                     stroke={color}
-                    strokeWidth={isFocused ? "2.5" : "2"}
+                    strokeWidth={isFocused ? "2" : "1.5"}
                     opacity="0.8"
                   />
 
-                  {/* Main Big Dot Core */}
+                  {/* Main Head Dot Core */}
                   <circle
                     cx={0}
                     cy={0}
-                    r={isFocused ? 6.5 : 5.5}
+                    r={isFocused ? 7 : 6}
                     fill={color}
                     stroke="#070A12"
-                    strokeWidth="2"
+                    strokeWidth="1.5"
                     className="transition-all duration-300"
                   />
 
-                  {/* Floating Attached Manager Label Pill */}
+                  {/* Desktop Label Pill (hidden on small mobile screens to keep chart pristine) */}
                   {currentData && (
-                    <g transform="translate(14, 0)">
+                    <g className="hidden md:block" transform="translate(12, 0)">
                       <rect
                         x={-2}
-                        y={-10}
-                        width="130"
-                        height="20"
-                        rx="6"
+                        y={-9}
+                        width="110"
+                        height="18"
+                        rx="5"
                         fill="#070A12"
                         stroke={isFocused ? color : "rgba(51, 65, 85, 0.5)"}
                         strokeWidth={isFocused ? "1.5" : "1"}
                       />
-                      <circle
-                        cx={6}
-                        cy={0}
-                        r="3"
-                        fill={color}
-                      />
                       <text
-                        x={15}
-                        y={3.5}
+                        x={8}
+                        y={3}
                         fill={isFocused ? "#FFFFFF" : color}
-                        fontSize="10"
+                        fontSize="9"
                         fontWeight="800"
                         className="truncate"
                       >
@@ -536,7 +556,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   ? "translate(-105%, -110%)"
                   : "translate(8%, -110%)",
             }}
-            className="pointer-events-none z-30 p-3 rounded-2xl bg-slate-950/95 border border-slate-700/80 shadow-2xl backdrop-blur-md min-w-[200px] text-xs transition-all duration-150"
+            className="pointer-events-none z-30 p-3 rounded-2xl bg-slate-950/95 border border-slate-700/80 shadow-2xl backdrop-blur-md min-w-[190px] text-xs transition-all duration-150"
           >
             <div className="flex items-center gap-2 pb-1.5 mb-1.5 border-b border-slate-800">
               <div
@@ -573,7 +593,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
               <div>
                 <span className="text-slate-400 block text-[9px] uppercase font-bold">
-                  {tooltip.gameweek === 0 ? "Pre-Season Net" : `GW ${tooltip.gameweek} Net Score`}
+                  {tooltip.gameweek === 0 ? "Pre-Season Net" : `GW ${tooltip.gameweek} Net`}
                 </span>
                 <span className="font-black text-white text-sm">
                   {tooltip.gwPoints}{" "}
@@ -592,6 +612,113 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* Live Synchronized Mini Leaderboard Grid (Updates dynamically in real-time) */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
+              {currentGw === 0 ? "GW0 Pre-Season Standings" : `GW ${currentGw} Live Standings`}
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">
+            Tap manager to spotlight
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {currentLeaderboard.map((item) => {
+            const isFocused = activeFocusId === item.managerId;
+            const isDimmed = activeFocusId !== null && !isFocused;
+            const isFirst = item.rank === 1;
+
+            return (
+              <button
+                key={item.managerId}
+                onClick={() =>
+                  setSelectedManagerId(
+                    selectedManagerId === item.managerId ? null : item.managerId
+                  )
+                }
+                onMouseEnter={() => setHoveredManagerId(item.managerId)}
+                onMouseLeave={() => setHoveredManagerId(null)}
+                style={{
+                  borderColor: isFocused ? item.color : undefined,
+                  boxShadow: isFocused ? `0 0 16px ${item.color}35` : undefined,
+                }}
+                className={`text-left p-2.5 rounded-xl border transition-all cursor-pointer ${
+                  isFocused
+                    ? "bg-slate-900 text-white"
+                    : isDimmed
+                    ? "bg-slate-950/40 border-slate-900/60 opacity-30 text-slate-500"
+                    : isFirst
+                    ? "bg-slate-950/90 border-emerald-500/30 text-slate-200 hover:border-emerald-500/60"
+                    : "bg-slate-950/70 border-slate-800/80 text-slate-300 hover:border-slate-700"
+                }`}
+              >
+                {/* Header: Rank + Movement */}
+                <div className="flex items-center justify-between gap-1 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span
+                      className={`text-xs font-black px-1.5 py-0.5 rounded ${
+                        isFirst
+                          ? "bg-emerald-400/20 text-emerald-400"
+                          : "bg-slate-800 text-slate-300"
+                      }`}
+                    >
+                      #{item.rank}
+                    </span>
+                  </div>
+
+                  {/* Movement badge */}
+                  {currentGw > 0 && (
+                    <span
+                      className={`text-[10px] font-bold ${
+                        item.rankDelta > 0
+                          ? "text-emerald-400"
+                          : item.rankDelta < 0
+                          ? "text-rose-400"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {item.rankDelta > 0
+                        ? `↑${item.rankDelta}`
+                        : item.rankDelta < 0
+                        ? `↓${Math.abs(item.rankDelta)}`
+                        : "="}
+                    </span>
+                  )}
+                </div>
+
+                {/* Manager Name & Team */}
+                <div className="mb-2">
+                  <span className="block text-xs font-bold truncate text-white">
+                    {item.playerName}
+                  </span>
+                  <span className="block text-[10px] text-slate-400 truncate">
+                    {item.teamName}
+                  </span>
+                </div>
+
+                {/* Points: GW vs Total */}
+                <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-slate-800/60">
+                  <span className="text-slate-400">
+                    {currentGw === 0 ? "Start" : `${item.points} pts`}
+                  </span>
+                  <span className="font-extrabold text-emerald-400">
+                    {item.cumNet} pts
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
