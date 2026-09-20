@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -117,11 +117,59 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   const progressRatio = safeMaxGw > 0 ? currentGw / safeMaxGw : 0;
   const strokeOffset = Math.max(0, 1000 * (1 - progressRatio));
 
+  // =========================================================
+  // MOBILE: VERTICALLY LONGER SMOOTH ROLLING HORIZON ENGINE
+  // =========================================================
+  const mSvgWidth = 380;
+  const mSvgHeight = Math.max(380, totalManagers * 50 + 40); // Vertically longer (~440px)
+  const mPadding = { top: 32, right: 16, bottom: 42, left: 46 };
+  const mGraphHeight = mSvgHeight - mPadding.top - mPadding.bottom;
+  const mGwStepWidth = 95; // Spacious 95px per gameweek
+
+  const getMobileX = (gw: number) => {
+    return mPadding.left + gw * mGwStepWidth;
+  };
+
+  const getMobileY = (rank: number) => {
+    if (totalManagers <= 1) return mPadding.top + mGraphHeight / 2;
+    return mPadding.top + ((rank - 1) / (totalManagers - 1)) * mGraphHeight;
+  };
+
+  const generateMobileFullPath = (managerId: number) => {
+    const points: { x: number; y: number }[] = [];
+    for (let gw = 0; gw <= safeMaxGw; gw++) {
+      const data = trajectoryMap[managerId]?.[gw];
+      if (data) {
+        points.push({ x: getMobileX(gw), y: getMobileY(data.rank) });
+      }
+    }
+
+    if (points.length === 0) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const cx = (p0.x + p1.x) / 2;
+      path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
+    }
+    return path;
+  };
+
+  // Continuous slide offset calculation:
+  // Keeps the active dots and player name labels (~110px pill width) smoothly positioned on the right of the screen
+  const pillWidth = 110;
+  const activeDotX = getMobileX(currentGw);
+  const activeRightEdge = activeDotX + pillWidth + 14;
+  const mobileViewportRight = mSvgWidth - mPadding.right;
+  const mobileSlideOffset = Math.max(0, activeRightEdge - mobileViewportRight);
+
   // ==========================================
   // DESKTOP HORIZONTAL BUMP CHART COORDINATES
   // ==========================================
   const dSvgWidth = 860;
-  const dSvgHeight = Math.max(300, totalManagers * 40 + 40);
+  const dSvgHeight = Math.max(320, totalManagers * 44 + 40);
   const dPadding = { top: 35, right: 150, bottom: 45, left: 60 };
   const dGraphWidth = dSvgWidth - dPadding.left - dPadding.right;
   const dGraphHeight = dSvgHeight - dPadding.top - dPadding.bottom;
@@ -157,92 +205,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     }
     return path;
   };
-
-  // =========================================================
-  // OPTION A: ROLLING 4-GAMEWEEK HORIZON WINDOW (Mobile)
-  // =========================================================
-  const WINDOW_SIZE = 4; // shows 4 gameweeks span (e.g. GW0..GW3 or GW1..GW4)
-  const windowStartGw = Math.max(0, Math.min(currentGw - (WINDOW_SIZE - 1), safeMaxGw - (WINDOW_SIZE - 1)));
-  const windowEndGw = Math.min(safeMaxGw, Math.max(windowStartGw + (WINDOW_SIZE - 1), currentGw));
-  const visibleGameweeks = useMemo(() => {
-    const arr: number[] = [];
-    for (let g = windowStartGw; g <= windowEndGw; g++) {
-      arr.push(g);
-    }
-    return arr;
-  }, [windowStartGw, windowEndGw]);
-
-  const mSvgWidth = 380;
-  const mSvgHeight = Math.max(280, totalManagers * 36 + 40);
-  const mPadding = { top: 25, right: 35, bottom: 35, left: 45 };
-  const mGraphWidth = mSvgWidth - mPadding.left - mPadding.right;
-  const mGraphHeight = mSvgHeight - mPadding.top - mPadding.bottom;
-
-  const getMobileX = (gw: number) => {
-    const span = Math.max(1, windowEndGw - windowStartGw);
-    return mPadding.left + ((gw - windowStartGw) / span) * mGraphWidth;
-  };
-
-  const getMobileY = (rank: number) => {
-    if (totalManagers <= 1) return mPadding.top + mGraphHeight / 2;
-    return mPadding.top + ((rank - 1) / (totalManagers - 1)) * mGraphHeight;
-  };
-
-  const generateMobileWindowPath = (managerId: number) => {
-    const points: { x: number; y: number }[] = [];
-    for (const gw of visibleGameweeks) {
-      const data = trajectoryMap[managerId]?.[gw];
-      if (data) {
-        points.push({ x: getMobileX(gw), y: getMobileY(data.rank) });
-      }
-    }
-
-    if (points.length === 0) return "";
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-
-    let path = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i];
-      const p1 = points[i + 1];
-      const cx = (p0.x + p1.x) / 2;
-      path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
-    }
-    return path;
-  };
-
-  // Mobile drawing offset for visible window
-  const mobileSpan = Math.max(1, windowEndGw - windowStartGw);
-  const mobileProgressInWindow = Math.max(
-    0,
-    Math.min(1, (currentGw - windowStartGw) / mobileSpan)
-  );
-  const mobileStrokeOffset = Math.max(0, 1000 * (1 - mobileProgressInWindow));
-
-  // Current Leaderboard Standings
-  const currentLeaderboard = profiles
-    .map((p, idx) => {
-      const data = trajectoryMap[p.id]?.[currentGw];
-      const prevData = currentGw > 0 ? trajectoryMap[p.id]?.[currentGw - 1] : undefined;
-      const rank = data?.rank || idx + 1;
-      const prevRank = prevData?.rank || rank;
-      const points = data?.points || 0;
-      const cumNet = data?.cumNet || 0;
-      const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-      const rankDelta = prevRank - rank;
-
-      return {
-        managerId: p.id,
-        playerName: p.player_name || "Manager",
-        teamName: p.entry_name || "Squad",
-        rank,
-        prevRank,
-        rankDelta,
-        points,
-        cumNet,
-        color,
-      };
-    })
-    .sort((a, b) => a.rank - b.rank);
 
   return (
     <div className="w-full space-y-4">
@@ -309,22 +271,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE VIEW: OPTION A - ROLLING 4-GW HORIZON WITH FIXED RANK AXIS (< md)  */}
+      {/* MOBILE VIEW: VERTICALLY LONGER SMOOTH ROLLING HORIZON WITH NAMES (< md)   */}
       {/* ========================================================================= */}
-      <div className="block md:hidden space-y-3">
-        {/* Rolling Window Header Banner */}
-        <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-900/70 border border-slate-800/90 rounded-xl text-[11px]">
-          <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Horizon: {windowStartGw === 0 ? "Start" : `GW${windowStartGw}`} → GW{windowEndGw}</span>
-          </div>
-          <span className="text-[10px] font-medium text-slate-400">
-            Active: <strong className="text-white">GW{currentGw === 0 ? "0" : currentGw}</strong>
-          </span>
-        </div>
-
-        {/* Rolling SVG Canvas */}
-        <div className="relative w-full rounded-2xl bg-slate-950/50 border border-slate-800/70 p-2 overflow-hidden">
+      <div className="block md:hidden">
+        {/* Rolling Horizon Canvas */}
+        <div className="relative w-full rounded-2xl bg-slate-950/60 border border-slate-800/80 p-2 overflow-hidden shadow-xl">
           <svg
             viewBox={`0 0 ${mSvgWidth} ${mSvgHeight}`}
             className="w-full h-auto select-none block"
@@ -344,30 +295,41 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+
+              {/* Clip path for the rolling graph area so lines don't bleed over the left fixed axis */}
+              <clipPath id="m-graph-clip">
+                <rect
+                  x={mPadding.left}
+                  y={0}
+                  width={mSvgWidth - mPadding.left}
+                  height={mSvgHeight}
+                />
+              </clipPath>
             </defs>
 
-            {/* Horizontal Rank Lines (Fixed on the Left) */}
+            {/* STATIC FIXED HORIZONTAL GRID LINES (#1 to #8) */}
             {Array.from({ length: totalManagers }, (_, i) => i + 1).map((rank) => {
               const y = getMobileY(rank);
               const isFirst = rank === 1;
 
               return (
-                <g key={`m-rank-${rank}`}>
+                <g key={`m-fixed-rank-${rank}`}>
                   <line
                     x1={mPadding.left}
                     y1={y}
-                    x2={mPadding.left + mGraphWidth}
+                    x2={mSvgWidth}
                     y2={y}
-                    stroke={isFirst ? "rgba(0, 255, 135, 0.2)" : "rgba(51, 65, 85, 0.25)"}
+                    stroke={isFirst ? "rgba(0, 255, 135, 0.2)" : "rgba(51, 65, 85, 0.2)"}
                     strokeDasharray="4 4"
                     strokeWidth={isFirst ? "1.5" : "1"}
                   />
+                  {/* Fixed left rank badge */}
                   <text
                     x={mPadding.left - 10}
                     y={y + 4}
                     textAnchor="end"
                     fill={isFirst ? "#00FF87" : "#64748B"}
-                    fontSize="10"
+                    fontSize="11"
                     fontWeight={isFirst ? "900" : "700"}
                     className="tabular-nums"
                   >
@@ -377,203 +339,246 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               );
             })}
 
-            {/* Vertical Gameweek Lines (Only the 4 Visible in Window) */}
-            {visibleGameweeks.map((gw) => {
-              const x = getMobileX(gw);
-              const isCurrent = gw === currentGw;
+            {/* SMOOTH CONTINUOUS SLIDING GRAPH GROUP (CLIPPED CLEANLY) */}
+            <g clipPath="url(#m-graph-clip)">
+              <g
+                style={{
+                  transform: `translateX(-${mobileSlideOffset}px)`,
+                  transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                }}
+              >
+                {/* Vertical Gameweek Lines & Labels */}
+                {gameweeks.map((gw) => {
+                  const x = getMobileX(gw);
+                  const isCurrent = gw === currentGw;
 
-              return (
-                <g key={`m-gw-${gw}`}>
-                  <line
-                    x1={x}
-                    y1={mPadding.top}
-                    x2={x}
-                    y2={mPadding.top + mGraphHeight}
-                    stroke={isCurrent ? "rgba(0, 255, 135, 0.3)" : "rgba(51, 65, 85, 0.2)"}
-                    strokeWidth={isCurrent ? "1.5" : "1"}
-                    strokeDasharray={isCurrent ? undefined : "3 3"}
-                  />
-                  <text
-                    x={x}
-                    y={mPadding.top + mGraphHeight + 18}
-                    textAnchor="middle"
-                    fill={isCurrent ? "#00FF87" : "#94A3B8"}
-                    fontSize="10"
-                    fontWeight={isCurrent ? "900" : "700"}
-                  >
-                    {gw === 0 ? "Start" : `GW${gw}`}
-                  </text>
-                </g>
-              );
-            })}
+                  return (
+                    <g key={`m-gw-col-${gw}`}>
+                      <line
+                        x1={x}
+                        y1={mPadding.top}
+                        x2={x}
+                        y2={mPadding.top + mGraphHeight}
+                        stroke={isCurrent ? "rgba(0, 255, 135, 0.35)" : "rgba(51, 65, 85, 0.2)"}
+                        strokeWidth={isCurrent ? "1.5" : "1"}
+                        strokeDasharray={isCurrent ? undefined : "3 3"}
+                      />
+                      <text
+                        x={x}
+                        y={mPadding.top + mGraphHeight + 20}
+                        textAnchor="middle"
+                        fill={isCurrent ? "#00FF87" : "#94A3B8"}
+                        fontSize="11"
+                        fontWeight={isCurrent ? "900" : "700"}
+                      >
+                        {gw === 0 ? "Start" : `GW${gw}`}
+                      </text>
+                    </g>
+                  );
+                })}
 
-            {/* Manager Window Curves */}
-            {profiles.map((p, idx) => {
-              const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
-              const isFocused = activeFocusId === p.id;
-              const isDimmed = activeFocusId !== null && !isFocused;
-              const windowPath = generateMobileWindowPath(p.id);
-              const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
-              const currentData = trajectoryMap[p.id]?.[currentGw];
+                {/* Manager Trajectory Curves */}
+                {profiles.map((p, idx) => {
+                  const color = TRAIL_COLORS[idx % TRAIL_COLORS.length];
+                  const isFocused = activeFocusId === p.id;
+                  const isDimmed = activeFocusId !== null && !isFocused;
+                  const fullPath = generateMobileFullPath(p.id);
+                  const currentRank = trajectoryMap[p.id]?.[currentGw]?.rank || idx + 1;
+                  const currentData = trajectoryMap[p.id]?.[currentGw];
 
-              const currentHeadX = getMobileX(currentGw);
-              const currentHeadY = getMobileY(currentRank);
+                  const currentHeadX = getMobileX(currentGw);
+                  const currentHeadY = getMobileY(currentRank);
 
-              return (
-                <g key={`m-path-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
-                  {/* Faint Window Ghost Arc */}
-                  <path
-                    d={windowPath}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth="1.5"
-                    strokeDasharray="3 3"
-                    opacity="0.2"
-                  />
+                  return (
+                    <g key={`m-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
+                      {/* Ghost full path */}
+                      <path
+                        d={fullPath}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="1.5"
+                        strokeDasharray="3 3"
+                        opacity="0.18"
+                      />
 
-                  {/* Active Focused Glow Aura */}
-                  {isFocused && (
-                    <path
-                      d={windowPath}
-                      pathLength={1000}
-                      strokeDasharray={1000}
-                      strokeDashoffset={mobileStrokeOffset}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth="9"
-                      opacity="0.35"
-                      filter="url(#m-trail-glow)"
-                      style={{
-                        transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
-                      }}
-                    />
-                  )}
+                      {/* Glowing focus aura */}
+                      {isFocused && (
+                        <path
+                          d={fullPath}
+                          pathLength={1000}
+                          strokeDasharray={1000}
+                          strokeDashoffset={strokeOffset}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth="9"
+                          opacity="0.35"
+                          filter="url(#m-trail-glow)"
+                          style={{
+                            transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                          }}
+                        />
+                      )}
 
-                  {/* Active Window Drawing Trail */}
-                  <path
-                    d={windowPath}
-                    pathLength={1000}
-                    strokeDasharray={1000}
-                    strokeDashoffset={mobileStrokeOffset}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={isFocused ? "4" : "2.5"}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{
-                      transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
-                    }}
-                  />
-
-                  {/* Breadcrumbs in Window */}
-                  {visibleGameweeks.map((gw) => {
-                    const data = trajectoryMap[p.id]?.[gw];
-                    if (!data) return null;
-
-                    const cx = getMobileX(gw);
-                    const cy = getMobileY(data.rank);
-                    const isPast = gw < currentGw;
-
-                    return (
-                      <g
-                        key={`m-bc-${p.id}-gw-${gw}`}
-                        className="cursor-pointer"
+                      {/* Continuous animated drawing line */}
+                      <path
+                        d={fullPath}
+                        pathLength={1000}
+                        strokeDasharray={1000}
+                        strokeDashoffset={strokeOffset}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={isFocused ? "4.5" : "2.5"}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                         style={{
-                          opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
-                          transition: `opacity ${transitionDuration} ease`,
+                          transition: `stroke-dashoffset ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
                         }}
+                      />
+
+                      {/* Breadcrumbs */}
+                      {gameweeks.map((gw) => {
+                        const data = trajectoryMap[p.id]?.[gw];
+                        if (!data) return null;
+
+                        const cx = getMobileX(gw);
+                        const cy = getMobileY(data.rank);
+                        const isPast = gw < currentGw;
+
+                        return (
+                          <g
+                            key={`m-bc-${p.id}-gw-${gw}`}
+                            className="cursor-pointer"
+                            style={{
+                              opacity: isPast ? (isFocused ? 0.9 : 0.45) : 0,
+                              transition: `opacity ${transitionDuration} ease`,
+                            }}
+                            onClick={() => {
+                              setHoveredManagerId(p.id);
+                              setTooltip({
+                                managerName: p.player_name || "Manager",
+                                teamName: p.entry_name || "Squad",
+                                gameweek: gw,
+                                rank: data.rank,
+                                prevRank:
+                                  gw > 0
+                                    ? trajectoryMap[p.id]?.[gw - 1]?.rank
+                                    : undefined,
+                                gwPoints: data.points,
+                                cumNet: data.cumNet,
+                                x: cx - mobileSlideOffset,
+                                y: cy,
+                                color,
+                              });
+                            }}
+                          >
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r="3.5"
+                              fill="#070A12"
+                              stroke={color}
+                              strokeWidth="1.5"
+                            />
+                          </g>
+                        );
+                      })}
+
+                      {/* BIG SLIDING HEAD DOT & PLAYER NAME PILL ON THE RIGHT */}
+                      <g
+                        key={`m-head-${p.id}`}
+                        style={{
+                          transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
+                          transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                          zIndex: isFocused ? 50 : 20,
+                        }}
+                        className="cursor-pointer select-none"
                         onClick={() => {
-                          setHoveredManagerId(p.id);
-                          setTooltip({
-                            managerName: p.player_name || "Manager",
-                            teamName: p.entry_name || "Squad",
-                            gameweek: gw,
-                            rank: data.rank,
-                            prevRank:
-                              gw > 0
-                                ? trajectoryMap[p.id]?.[gw - 1]?.rank
-                                : undefined,
-                            gwPoints: data.points,
-                            cumNet: data.cumNet,
-                            x: cx,
-                            y: cy,
-                            color,
-                          });
+                          setSelectedManagerId(
+                            selectedManagerId === p.id ? null : p.id
+                          );
+                          if (currentData) {
+                            setTooltip({
+                              managerName: p.player_name || "Manager",
+                              teamName: p.entry_name || "Squad",
+                              gameweek: currentGw,
+                              rank: currentData.rank,
+                              prevRank:
+                                currentGw > 0
+                                  ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
+                                  : undefined,
+                              gwPoints: currentData.points,
+                              cumNet: currentData.cumNet,
+                              x: currentHeadX - mobileSlideOffset,
+                              y: currentHeadY,
+                              color,
+                            });
+                          }
                         }}
                       >
+                        {/* Outer Glow Ring */}
                         <circle
-                          cx={cx}
-                          cy={cy}
-                          r="3"
-                          fill="#070A12"
-                          stroke={color}
-                          strokeWidth="1.5"
+                          cx={0}
+                          cy={0}
+                          r={isFocused ? 13 : 10}
+                          fill={color}
+                          opacity="0.25"
+                          filter="url(#m-head-glow)"
                         />
-                      </g>
-                    );
-                  })}
+                        <circle
+                          cx={0}
+                          cy={0}
+                          r={isFocused ? 10 : 8}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={isFocused ? "2.5" : "1.8"}
+                          opacity="0.85"
+                        />
+                        <circle
+                          cx={0}
+                          cy={0}
+                          r={isFocused ? 6.5 : 5}
+                          fill={color}
+                          stroke="#070A12"
+                          strokeWidth="2"
+                        />
 
-                  {/* Sliding Head Dot */}
-                  <g
-                    key={`m-head-${p.id}`}
-                    style={{
-                      transform: `translate(${currentHeadX}px, ${currentHeadY}px)`,
-                      transition: `transform ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
-                      zIndex: isFocused ? 50 : 20,
-                    }}
-                    className="cursor-pointer select-none"
-                    onClick={() => {
-                      setSelectedManagerId(
-                        selectedManagerId === p.id ? null : p.id
-                      );
-                      if (currentData) {
-                        setTooltip({
-                          managerName: p.player_name || "Manager",
-                          teamName: p.entry_name || "Squad",
-                          gameweek: currentGw,
-                          rank: currentData.rank,
-                          prevRank:
-                            currentGw > 0
-                              ? trajectoryMap[p.id]?.[currentGw - 1]?.rank
-                              : undefined,
-                          gwPoints: currentData.points,
-                          cumNet: currentData.cumNet,
-                          x: currentHeadX,
-                          y: currentHeadY,
-                          color,
-                        });
-                      }
-                    }}
-                  >
-                    <circle
-                      cx={0}
-                      cy={0}
-                      r={isFocused ? 13 : 9}
-                      fill={color}
-                      opacity="0.3"
-                      filter="url(#m-head-glow)"
-                    />
-                    <circle
-                      cx={0}
-                      cy={0}
-                      r={isFocused ? 9.5 : 7.5}
-                      fill="none"
-                      stroke={color}
-                      strokeWidth={isFocused ? "2" : "1.5"}
-                      opacity="0.85"
-                    />
-                    <circle
-                      cx={0}
-                      cy={0}
-                      r={isFocused ? 6.5 : 5}
-                      fill={color}
-                      stroke="#070A12"
-                      strokeWidth="1.5"
-                    />
-                  </g>
-                </g>
-              );
-            })}
+                        {/* Player Name Pill on the Right of the Dot */}
+                        {currentData && (
+                          <g transform="translate(12, 0)">
+                            <rect
+                              x={-2}
+                              y={-10}
+                              width={pillWidth}
+                              height="20"
+                              rx="6"
+                              fill="#070A12"
+                              stroke={isFocused ? color : "rgba(51, 65, 85, 0.6)"}
+                              strokeWidth={isFocused ? "1.5" : "1"}
+                            />
+                            <circle
+                              cx={5}
+                              cy={0}
+                              r="3"
+                              fill={color}
+                            />
+                            <text
+                              x={13}
+                              y={3.5}
+                              fill={isFocused ? "#FFFFFF" : color}
+                              fontSize="9.5"
+                              fontWeight="800"
+                              className="truncate"
+                            >
+                              {p.player_name.split(" ")[0]} (#{currentData.rank})
+                            </text>
+                          </g>
+                        )}
+                      </g>
+                    </g>
+                  );
+                })}
+              </g>
+            </g>
           </svg>
 
           {/* Interactive Tooltip on Mobile */}
@@ -625,81 +630,6 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Mobile Mini Leaderboard Companion */}
-        <div className="grid grid-cols-2 gap-2">
-          {currentLeaderboard.map((item) => {
-            const isFocused = activeFocusId === item.managerId;
-            const isDimmed = activeFocusId !== null && !isFocused;
-            const isFirst = item.rank === 1;
-
-            return (
-              <button
-                key={`m-card-${item.managerId}`}
-                onClick={() =>
-                  setSelectedManagerId(
-                    selectedManagerId === item.managerId ? null : item.managerId
-                  )
-                }
-                style={{
-                  borderColor: isFocused ? item.color : undefined,
-                  boxShadow: isFocused ? `0 0 14px ${item.color}35` : undefined,
-                }}
-                className={`text-left p-2 rounded-xl border transition-all cursor-pointer ${
-                  isFocused
-                    ? "bg-slate-900 text-white"
-                    : isDimmed
-                    ? "bg-slate-950/40 border-slate-900/60 opacity-30 text-slate-500"
-                    : isFirst
-                    ? "bg-slate-950/90 border-emerald-500/30 text-slate-200"
-                    : "bg-slate-950/70 border-slate-800/80 text-slate-300 hover:border-slate-700"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: item.color }}
-                    />
-                    <span
-                      className={`text-[11px] font-black px-1.5 py-0.5 rounded ${
-                        isFirst
-                          ? "bg-emerald-400/20 text-emerald-400"
-                          : "bg-slate-800 text-slate-300"
-                      }`}
-                    >
-                      #{item.rank}
-                    </span>
-                  </div>
-                  {currentGw > 0 && (
-                    <span
-                      className={`text-[10px] font-bold ${
-                        item.rankDelta > 0
-                          ? "text-emerald-400"
-                          : item.rankDelta < 0
-                          ? "text-rose-400"
-                          : "text-slate-500"
-                      }`}
-                    >
-                      {item.rankDelta > 0
-                        ? `↑${item.rankDelta}`
-                        : item.rankDelta < 0
-                        ? `↓${Math.abs(item.rankDelta)}`
-                        : "="}
-                    </span>
-                  )}
-                </div>
-                <span className="block text-xs font-bold truncate text-white">
-                  {item.playerName}
-                </span>
-                <div className="flex items-center justify-between text-[10px] pt-1 mt-1 border-t border-slate-800/60 text-slate-400">
-                  <span>{item.points} pts</span>
-                  <span className="font-bold text-emerald-400">{item.cumNet} tot</span>
-                </div>
-              </button>
-            );
-          })}
         </div>
       </div>
 
