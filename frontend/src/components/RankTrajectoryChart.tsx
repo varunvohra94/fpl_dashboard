@@ -351,6 +351,24 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   height={mSvgHeight}
                 />
               </clipPath>
+
+              {/* Progressive dynamic clip paths for each manager: tracks dot position during transitions */}
+              {profiles.map((p) => {
+                const headX = getMobileX(currentGw);
+                return (
+                  <clipPath key={`m-trail-clip-${p.id}`} id={`m-trail-clip-${p.id}`}>
+                    <rect
+                      x={0}
+                      y={0}
+                      width={headX + 2}
+                      height={mSvgHeight}
+                      style={{
+                        transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                      }}
+                    />
+                  </clipPath>
+                );
+              })}
             </defs>
 
             {/* STATIC FIXED HORIZONTAL GRID LINES (#1 to #8) */}
@@ -438,43 +456,43 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
                   return (
                     <g key={`m-path-group-${p.id}`} opacity={isDimmed ? 0.12 : 1}>
-                      {/* Ghost full season path */}
+                      {/* Ghost full season path (Faint reference track) */}
                       <path
                         d={fullPath}
                         fill="none"
                         stroke={color}
                         strokeWidth="1.5"
                         strokeDasharray="3 3"
-                        opacity="0.18"
+                        opacity="0.16"
                       />
 
-                      {/* Glowing focus aura (Strictly anchored to active gameweek endpoint) */}
-                      {isFocused && (
+                      {/* Active Trail Group (Synchronized with Dot Motion via dynamic clipping) */}
+                      <g clipPath={`url(#m-trail-clip-${p.id})`}>
+                        {/* Glowing focus aura */}
+                        {isFocused && (
+                          <path
+                            d={activePath}
+                            fill="none"
+                            stroke={color}
+                            strokeWidth="9"
+                            opacity="0.35"
+                            filter="url(#m-trail-glow)"
+                          />
+                        )}
+
+                        {/* Continuous active trail line (Progressively created by the moving dot) */}
                         <path
                           d={activePath}
                           fill="none"
                           stroke={color}
-                          strokeWidth="9"
-                          opacity="0.35"
-                          filter="url(#m-trail-glow)"
+                          strokeWidth={isFocused ? "4.5" : "2.5"}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                           style={{
-                            transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                            transition: "stroke-width 300ms ease",
                           }}
                         />
-                      )}
-
-                      {/* Continuous drawing active trail line (Strictly anchored to active gameweek endpoint) */}
-                      <path
-                        d={activePath}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={isFocused ? "4.5" : "2.5"}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{
-                          transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
-                        }}
-                      />
+                      </g>
 
                       {/* Breadcrumbs */}
                       {gameweeks.map((gw) => {
@@ -697,6 +715,24 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+
+            {/* Desktop Progressive dynamic clip paths */}
+            {profiles.map((p) => {
+              const headX = getDesktopX(currentGw);
+              return (
+                <clipPath key={`d-trail-clip-${p.id}`} id={`d-trail-clip-${p.id}`}>
+                  <rect
+                    x={0}
+                    y={0}
+                    width={headX + 2}
+                    height={dSvgHeight}
+                    style={{
+                      transition: `width ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                    }}
+                  />
+                </clipPath>
+              );
+            })}
           </defs>
 
           {/* Horizontal Grid Lines (Ranks 1..N) */}
@@ -784,33 +820,33 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   opacity="0.18"
                 />
 
-                {/* Glowing Focus Aura along active path */}
-                {isFocused && (
+                {/* Active Trail Group (Synchronized with Dot Motion via dynamic clipping) */}
+                <g clipPath={`url(#d-trail-clip-${p.id})`}>
+                  {/* Glowing Focus Aura along active path */}
+                  {isFocused && (
+                    <path
+                      d={activePath}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth="9"
+                      opacity="0.35"
+                      filter="url(#d-trail-glow)"
+                    />
+                  )}
+
+                  {/* Continuous Drawing Active Trail Line */}
                   <path
                     d={activePath}
                     fill="none"
                     stroke={color}
-                    strokeWidth="9"
-                    opacity="0.35"
-                    filter="url(#d-trail-glow)"
+                    strokeWidth={isFocused ? "4.5" : "2.5"}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     style={{
-                      transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1)`,
+                      transition: "stroke-width 300ms ease",
                     }}
                   />
-                )}
-
-                {/* Continuous Drawing Active Trail Line */}
-                <path
-                  d={activePath}
-                  fill="none"
-                  stroke={color}
-                  strokeWidth={isFocused ? "4.5" : "2.5"}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transition: `d ${transitionDuration} cubic-bezier(0.4, 0, 0.2, 1), stroke-width 300ms ease`,
-                  }}
-                />
+                </g>
 
                 {/* Milestone Breadcrumb Dots Left Behind */}
                 {gameweeks.map((gw) => {
