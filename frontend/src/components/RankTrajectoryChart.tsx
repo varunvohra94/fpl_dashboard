@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
@@ -160,6 +160,36 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
 
   const activeFocusId = selectedManagerId || hoveredManagerId;
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Broadcast Camera Auto-Scroll Tracking for Mobile Screens
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+
+    // Position of active gameweek in SVG coordinates
+    const headXInSvg = getX(currentGw);
+
+    // Offset for trailing label pill attached to the sliding dot
+    const focusXInSvg = headXInSvg + (currentGw === 0 ? 0 : 50);
+
+    const svgElement = container.querySelector("svg");
+    if (!svgElement) return;
+
+    const renderedWidth = svgElement.getBoundingClientRect().width;
+    const scaleRatio = renderedWidth / svgWidth;
+    const targetPixelX = focusXInSvg * scaleRatio;
+    const viewportWidth = container.clientWidth;
+
+    // Center active gameweek dot inside viewport
+    const scrollTarget = Math.max(0, targetPixelX - viewportWidth / 2);
+
+    container.scrollTo({
+      left: scrollTarget,
+      behavior: "smooth",
+    });
+  }, [currentGw, safeMaxGw, svgWidth]);
+
   return (
     <div className="w-full space-y-4">
       {/* Legend / Filter Pills */}
@@ -224,8 +254,20 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
         )}
       </div>
 
-      {/* SVG Bump Chart Canvas */}
-      <div className="relative overflow-x-auto w-full">
+      {/* Mobile Broadcast Camera Indicator Bar */}
+      <div className="flex sm:hidden items-center justify-between text-[11px] text-slate-400 px-1 font-medium">
+        <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+          <span>Auto-Camera tracking GW{currentGw === 0 ? "0" : currentGw}</span>
+        </span>
+        <span className="text-[10px] text-slate-500">Swipe to pan manually</span>
+      </div>
+
+      {/* SVG Bump Chart Canvas with Auto-Scroll Tracking */}
+      <div
+        ref={scrollContainerRef}
+        className="relative overflow-x-auto w-full scroll-smooth"
+      >
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full h-auto min-w-[720px] select-none"
