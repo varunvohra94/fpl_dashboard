@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FPL Rival Intelligence | Mini-League Platform",
+  title: "FPLShowdown | Mini-League Intelligence Platform",
   description:
-    "Advanced Fantasy Premier League rival intelligence dashboard tracking Net Points, rolling form, transfer feeds, and animated bar chart races.",
+    "Advanced Fantasy Premier League intelligence dashboard tracking Net Points, rolling form, transfer feeds, and live rank race trajectories.",
 };
 
 export default function RootLayout({
