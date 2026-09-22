@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import {
   Sparkles,
   ArrowUpDown,
-  Search,
   Trophy,
   Calendar,
   ChevronDown,
@@ -41,7 +40,6 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   onSelectManager,
 }) => {
   const [viewMode, setViewMode] = useState<"table" | "graph">("table");
-  const [searchTerm, setSearchTerm] = useState("");
   const [viewScope, setViewScope] = useState<ViewScope>("season");
   const [sortField, setSortField] = useState<SortField>("league_rank");
   const [sortAsc, setSortAsc] = useState(true);
@@ -69,19 +67,12 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
     }
   };
 
-  // 3. Filter by search query
-  const filteredStandings = rankedData
-    .filter((s) => {
-      const pName = (s.player_name || "").toLowerCase();
-      const eName = (s.entry_name || "").toLowerCase();
-      const query = searchTerm.toLowerCase();
-      return pName.includes(query) || eName.includes(query);
-    })
-    .sort((a, b) => {
-      const valA = a[sortField] ?? 0;
-      const valB = b[sortField] ?? 0;
-      return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
-    });
+  // 3. Sort standings
+  const sortedStandings = [...rankedData].sort((a, b) => {
+    const valA = a[sortField] ?? 0;
+    const valB = b[sortField] ?? 0;
+    return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
+  });
 
   const getFormColor = (form: number | null) => {
     if (form === null || form === undefined)
@@ -128,20 +119,11 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full min-h-[560px]">
       {/* Table / Graph Header Controls */}
-      <div className="p-3 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="p-3 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-          <div>
-            <h3 className="text-sm sm:text-lg font-black text-white tracking-tight">
-              FPL Showdown
-            </h3>
-            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-              {viewMode === "table"
-                ? viewScope === "season"
-                  ? "Net Points (After Hits)"
-                  : `Gameweek ${activeDisplayGw} Scores`
-                : "Live Rank Trajectory"}
-            </p>
-          </div>
+          <h3 className="text-sm sm:text-lg font-black text-white tracking-tight">
+            FPL Showdown
+          </h3>
 
           {/* Clean View Toggle: Table | Graph (No emoticons) */}
           <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
@@ -168,55 +150,40 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           </div>
         </div>
 
-        {/* View Scope Dropdown & Search Bar (Active in Table Mode) */}
+        {/* View Scope Dropdown (Active in Table Mode) */}
         {viewMode === "table" && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            {/* Unified Scope Dropdown Menu */}
-            <div className="relative w-full sm:w-auto">
-              <select
-                value={viewScope === "season" ? "season" : String(activeDisplayGw)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "season") {
-                    setViewScope("season");
-                    setSortField("league_rank");
-                    setSortAsc(true);
-                    onSelectGw?.(0);
-                  } else {
-                    const gwNum = Number(val);
-                    setViewScope("gameweek");
-                    setSortField("league_rank");
-                    setSortAsc(true);
-                    onSelectGw?.(gwNum);
-                  }
-                }}
-                aria-label="Select Standings Scope"
-                className="w-full sm:w-auto appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 sm:py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
-              >
-                <option value="season">🏆 Overall Season</option>
-                {Array.from(
-                  { length: Math.max(maxAvailableGw, 1) },
-                  (_, i) => maxAvailableGw - i
-                ).map((gw) => (
-                  <option key={gw} value={gw}>
-                    ⚽ Gameweek {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative flex-1 sm:w-60 lg:w-64 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search manager or squad..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors shadow-sm"
-              />
-            </div>
+          <div className="relative w-full sm:w-auto">
+            <select
+              value={viewScope === "season" ? "season" : String(activeDisplayGw)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "season") {
+                  setViewScope("season");
+                  setSortField("league_rank");
+                  setSortAsc(true);
+                  onSelectGw?.(0);
+                } else {
+                  const gwNum = Number(val);
+                  setViewScope("gameweek");
+                  setSortField("league_rank");
+                  setSortAsc(true);
+                  onSelectGw?.(gwNum);
+                }
+              }}
+              aria-label="Select Standings Scope"
+              className="w-full sm:w-auto appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 sm:py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
+            >
+              <option value="season">🏆 Overall Season</option>
+              {Array.from(
+                { length: Math.max(maxAvailableGw, 1) },
+                (_, i) => maxAvailableGw - i
+              ).map((gw) => (
+                <option key={gw} value={gw}>
+                  ⚽ Gameweek {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
         )}
       </div>
@@ -319,14 +286,14 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 tabular-nums">
-            {filteredStandings.length === 0 ? (
+            {sortedStandings.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-10 text-center text-slate-500">
-                  No rivals found matching your search.
+                  No rivals found.
                 </td>
               </tr>
             ) : (
-              filteredStandings.map((m) => {
+              sortedStandings.map((m) => {
                 const isLeader = m.league_rank === 1;
                 const chipInfo = getChipLabel(m.chip_used);
 
