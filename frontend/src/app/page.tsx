@@ -5,6 +5,7 @@ import {
   Trophy,
   BarChart3,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import {
   LeagueStandingsResponse,
@@ -28,7 +29,7 @@ import { RankTrajectoryChart } from "../components/RankTrajectoryChart";
 import { FormHitsMatrix } from "../components/FormHitsMatrix";
 import { ChipMatrix } from "../components/ChipMatrix";
 
-type ActiveTab = "standings" | "race";
+type ActiveTab = "standings" | "race" | "highlights";
 
 export default function DashboardPage() {
   const [maxAvailableGw, setMaxAvailableGw] = useState<number>(1);
@@ -155,12 +156,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Season & Matchday Intelligence Highlights */}
-        <HighlightsBanner
-          cards={highlightCards}
-          onSelectManager={handleSelectManagerByName}
-        />
-
         {/* Tab Navigation Controls */}
         <div className="flex items-center justify-between border-b border-slate-800/80 mb-6 overflow-x-auto pb-1">
           <div className="flex items-center gap-2">
@@ -186,6 +181,18 @@ export default function DashboardPage() {
             >
               <BarChart3 className="h-4 w-4" />
               <span>Stats</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("highlights")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === "highlights"
+                  ? "bg-gradient-to-r from-amber-500/20 to-orange-500/10 text-amber-300 border border-amber-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Season Highlights</span>
             </button>
           </div>
         </div>
@@ -232,6 +239,16 @@ export default function DashboardPage() {
             <FormHitsMatrix
               standings={standingsData?.standings || []}
               selectedGw={maxAvailableGw}
+            />
+          </div>
+        )}
+
+        {/* Tab 3: Season Highlights */}
+        {activeTab === "highlights" && (
+          <div className="space-y-6">
+            <HighlightsBanner
+              cards={highlightCards}
+              onSelectManager={handleSelectManagerByName}
             />
           </div>
         )}
