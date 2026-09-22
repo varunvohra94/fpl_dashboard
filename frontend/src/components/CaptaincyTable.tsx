@@ -2,13 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Crown,
   Flame,
   Snowflake,
   ChevronDown,
-  Sparkles,
-  TrendingUp,
-  Percent,
 } from "lucide-react";
 import { LeagueCaptaincyResponse, ManagerCaptainStats } from "../lib/types";
 import { fetchCaptaincyStats } from "../lib/api";
@@ -58,13 +54,7 @@ export const CaptaincyTable: React.FC<CaptaincyTableProps> = ({
       {/* Header & Controls */}
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-amber-500/20 text-amber-300 border-amber-500/30 uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-              <Crown className="h-3.5 w-3.5" />
-              Captaincy Intelligence
-            </span>
-          </div>
-          <h3 className="text-lg sm:text-xl font-extrabold text-white mt-1">
+          <h3 className="text-lg sm:text-xl font-extrabold text-white">
             Best Captain Picker
           </h3>
         </div>
