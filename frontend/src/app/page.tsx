@@ -8,12 +8,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import {
+  LeagueCaptaincyResponse,
   LeagueStandingsResponse,
   LeagueTransfersResponse,
   ManagerProfileResponse,
   PipelineStatusResponse,
 } from "../lib/types";
 import {
+  fetchCaptaincyStats,
   fetchLeagueStandings,
   fetchLeagueTransfers,
   fetchManagerHistory,
@@ -27,6 +29,8 @@ import { TransferFeed } from "../components/TransferFeed";
 import { ManagerModal } from "../components/ManagerModal";
 import { FormHitsMatrix } from "../components/FormHitsMatrix";
 import { ChipMatrix } from "../components/ChipMatrix";
+import { PositionalPointsTable } from "../components/PositionalPointsTable";
+import { CaptaincyTable } from "../components/CaptaincyTable";
 
 type ActiveTab = "standings" | "race" | "highlights";
 
@@ -42,6 +46,7 @@ export default function DashboardPage() {
   // Data states
   const [standingsData, setStandingsData] = useState<LeagueStandingsResponse | null>(null);
   const [transfersData, setTransfersData] = useState<LeagueTransfersResponse | null>(null);
+  const [captainStatsData, setCaptainStatsData] = useState<LeagueCaptaincyResponse | null>(null);
   const [profilesData, setProfilesData] = useState<ManagerProfileResponse[]>([]);
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null);
 
@@ -76,14 +81,18 @@ export default function DashboardPage() {
     setError(null);
 
     try {
-      // 1. Fetch Standings and Transfers concurrently
-      const [standingsRes, transfersRes] = await Promise.all([
+      // 1. Fetch Standings, Transfers, and Season Captaincy concurrently
+      const [standingsRes, transfersRes, captainRes] = await Promise.all([
         fetchLeagueStandings(undefined, currentMaxGw > 0 ? currentMaxGw : undefined),
         fetchLeagueTransfers(undefined, undefined, 200),
+        fetchCaptaincyStats(undefined, 0).catch(() => null),
       ]);
 
       setStandingsData(standingsRes);
       setTransfersData(transfersRes);
+      if (captainRes) {
+        setCaptainStatsData(captainRes);
+      }
 
       // 2. Fetch all manager profiles for season records, race & matrix
       if (standingsRes?.standings?.length > 0) {
@@ -116,7 +125,8 @@ export default function DashboardPage() {
   const highlightCards = generateHighlightCards(
     standingsData?.standings || [],
     profilesData,
-    maxAvailableGw
+    maxAvailableGw,
+    captainStatsData
   );
 
   const handleSelectManagerByName = (managerName: string) => {
@@ -233,8 +243,22 @@ export default function DashboardPage() {
 
         {/* Tab 2: Stats */}
         {activeTab === "race" && (
-          <div className="space-y-6">
-            {/* Form vs Hits Behavioral Matrix */}
+          <div className="space-y-8">
+            {/* 1. Positional Points Breakdown Table */}
+            <PositionalPointsTable
+              maxAvailableGw={maxAvailableGw}
+              leagueId={standingsData?.league_id}
+              onSelectManager={(id) => setSelectedManagerId(id)}
+            />
+
+            {/* 2. Best Captain Picker Performance Table */}
+            <CaptaincyTable
+              maxAvailableGw={maxAvailableGw}
+              leagueId={standingsData?.league_id}
+              onSelectManager={(id) => setSelectedManagerId(id)}
+            />
+
+            {/* 3. Form vs Hits Behavioral Matrix */}
             <FormHitsMatrix
               standings={standingsData?.standings || []}
               selectedGw={maxAvailableGw}

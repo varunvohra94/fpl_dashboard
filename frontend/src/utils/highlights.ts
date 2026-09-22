@@ -5,6 +5,7 @@
 
 import {
   HighlightCardData,
+  LeagueCaptaincyResponse,
   ManagerProfileResponse,
   StandingsEntry,
 } from "../lib/types";
@@ -12,7 +13,8 @@ import {
 export type CardEvaluator = (
   standings: StandingsEntry[],
   profiles: ManagerProfileResponse[],
-  selectedGw: number
+  selectedGw: number,
+  captainStats?: LeagueCaptaincyResponse | null
 ) => HighlightCardData | null;
 
 /**
@@ -284,10 +286,57 @@ export const evalFormKing: CardEvaluator = (
 };
 
 /**
+ * 5. Captain King - Highest Cumulative Points from Captain Picks
+ */
+export const evalCaptainKing: CardEvaluator = (
+  _standings,
+  _profiles,
+  _selectedGw,
+  captainStats
+) => {
+  if (!captainStats || !captainStats.captains || !captainStats.captains.length) {
+    return null;
+  }
+
+  const sorted = [...captainStats.captains].sort(
+    (a, b) => b.total_captain_points - a.total_captain_points
+  );
+  const leader = sorted[0];
+  if (!leader || leader.total_captain_points <= 0) return null;
+
+  const tied = sorted.filter(
+    (c) => c.total_captain_points === leader.total_captain_points
+  );
+  const isTied = tied.length > 1;
+
+  const headline = isTied
+    ? `Joint Captain Kings (${leader.total_captain_points} pts)`
+    : `${leader.player_name} leads with ${leader.total_captain_points} captain pts`;
+
+  return {
+    id: "captain_king",
+    title: "CAPTAIN KING",
+    badgeText: isTied ? "👑 Joint Leaders" : "👑 Master Tactician",
+    accentColor: "amber",
+    headline,
+    subtext: `Armband performance: ${leader.average_captain_points.toFixed(1)} avg/gw • ${leader.hauls_count} hauls`,
+    statValue: `${leader.total_captain_points}`,
+    statLabel: "Captain Points",
+    managers: tied.map((m) => ({
+      managerName: m.player_name,
+      teamName: m.entry_name,
+      detail: `${m.captain_success_rate.toFixed(0)}% success rate`,
+    })),
+    iconType: "crown",
+  };
+};
+
+/**
  * Master Registry of Evaluators.
  */
 export const CARD_EVALUATORS: CardEvaluator[] = [
   evalSeasonRecordHaul,
+  evalCaptainKing,
   evalFormKing,
   evalBenchRegrets,
   evalTheGambler,
@@ -299,14 +348,16 @@ export const CARD_EVALUATORS: CardEvaluator[] = [
 export function generateHighlightCards(
   standings: StandingsEntry[],
   profiles: ManagerProfileResponse[],
-  selectedGw: number
+  selectedGw: number,
+  captainStats?: LeagueCaptaincyResponse | null
 ): HighlightCardData[] {
   const cards: HighlightCardData[] = [];
   for (const evaluator of CARD_EVALUATORS) {
-    const card = evaluator(standings, profiles, selectedGw);
+    const card = evaluator(standings, profiles, selectedGw, captainStats);
     if (card) {
       cards.push(card);
     }
   }
   return cards;
 }
+

@@ -9,6 +9,7 @@ from app.models import (
     ElementGameweekHistory,
     GameweekScore,
     Manager,
+    ManagerPick,
     PipelineMetadata,
     Team,
     Transfer,
@@ -253,3 +254,26 @@ class PipelineLoader:
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def load_manager_picks(
+        self, session: AsyncSession, picks: list[dict[str, Any]]
+    ) -> int:
+        """Upsert manager squad picks into the manager_picks table."""
+        if not picks:
+            return 0
+
+        stmt = pg_insert(ManagerPick).values(picks)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_manager_gw_element",
+            set_={
+                "position": stmt.excluded.position,
+                "multiplier": stmt.excluded.multiplier,
+                "is_captain": stmt.excluded.is_captain,
+                "is_vice_captain": stmt.excluded.is_vice_captain,
+                "raw_points": stmt.excluded.raw_points,
+                "total_points": stmt.excluded.total_points,
+            },
+        )
+        await session.execute(stmt)
+        return len(picks)
+
