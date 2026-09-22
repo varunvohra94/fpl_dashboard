@@ -79,22 +79,8 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
         color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
       };
     }
-    if (lower === "bboost" || lower === "bb" || lower === "benchboost") {
-      return {
-        label: "Bench Boost",
-        color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
-      };
-    }
-    if (lower === "3xc" || lower === "tc" || lower === "triplecaptain") {
-      return {
-        label: "Triple Captain",
-        color: "bg-amber-500/20 text-amber-300 border-amber-500/40",
-      };
-    }
-    return {
-      label: chip.toUpperCase(),
-      color: "bg-slate-700 text-slate-300 border-slate-600",
-    };
+    // Only display transfer-related chips (Wildcard & Free Hit) in the Transfer Feed
+    return null;
   };
 
   // 1. Filter transfers based on selectedGw (0 = Overall Season)
@@ -152,19 +138,14 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
       {/* Header & Controls Bar */}
-      <div className="p-3 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="p-3 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h3 className="text-sm sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-            <span>Rival Transfer Feed</span>
+            <span>Transfer Feed</span>
             <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-semibold">
               {activeTransfers.length} Move{activeTransfers.length === 1 ? "" : "s"}
             </span>
           </h3>
-          <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-            {selectedGw > 0
-              ? `Gameweek ${selectedGw} Transfer Activity`
-              : "Overall Season Activity (Latest First)"}
-          </p>
         </div>
 
         {/* View Scope Dropdown Menu */}
