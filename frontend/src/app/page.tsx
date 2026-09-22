@@ -5,6 +5,7 @@ import {
   Trophy,
   BarChart3,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import {
   LeagueStandingsResponse,
@@ -24,11 +25,10 @@ import { HighlightsBanner } from "../components/HighlightsBanner";
 import { StandingsTable } from "../components/StandingsTable";
 import { TransferFeed } from "../components/TransferFeed";
 import { ManagerModal } from "../components/ManagerModal";
-import { BarChartRace } from "../components/BarChartRace";
 import { FormHitsMatrix } from "../components/FormHitsMatrix";
 import { ChipMatrix } from "../components/ChipMatrix";
 
-type ActiveTab = "standings" | "race";
+type ActiveTab = "standings" | "race" | "highlights";
 
 export default function DashboardPage() {
   const [maxAvailableGw, setMaxAvailableGw] = useState<number>(1);
@@ -155,12 +155,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Season & Matchday Intelligence Highlights */}
-        <HighlightsBanner
-          cards={highlightCards}
-          onSelectManager={handleSelectManagerByName}
-        />
-
         {/* Tab Navigation Controls */}
         <div className="flex items-center justify-between border-b border-slate-800/80 mb-6 overflow-x-auto pb-1">
           <div className="flex items-center gap-2">
@@ -187,17 +181,30 @@ export default function DashboardPage() {
               <BarChart3 className="h-4 w-4" />
               <span>Stats</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab("highlights")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === "highlights"
+                  ? "bg-gradient-to-r from-amber-500/20 to-orange-500/10 text-amber-300 border border-amber-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Season Highlights</span>
+            </button>
           </div>
         </div>
 
         {/* Tab 1: Standings & News Feed */}
         {activeTab === "standings" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              {/* Standings Table with its own GW Dropdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Standings Table with its own GW Dropdown & Graph Toggle */}
               <div className="lg:col-span-7 xl:col-span-8 flex flex-col h-full">
                 <StandingsTable
                   standings={standingsData?.standings || []}
+                  profiles={profilesData}
                   selectedGw={standingsGw}
                   maxAvailableGw={maxAvailableGw}
                   onSelectGw={(gw) => setStandingsGw(gw)}
@@ -205,10 +212,15 @@ export default function DashboardPage() {
                 />
               </div>
 
-              {/* Transfer Feed with its own GW Dropdown */}
-              <div className="lg:col-span-5 xl:col-span-4 flex flex-col h-full min-h-0">
+              {/* Right Column: Chip Usage Metrics & Rival Transfer Feed */}
+              <div className="lg:col-span-5 xl:col-span-4 flex flex-col space-y-6 min-h-0">
+                {/* Chip Usage Metrics */}
+                <ChipMatrix profiles={profilesData} />
+
+                {/* Transfer Feed with its own GW Dropdown */}
                 <TransferFeed
                   transfers={transfersData?.transfers || []}
+                  profiles={profilesData}
                   selectedGw={transfersGw}
                   maxAvailableGw={maxAvailableGw}
                   onSelectGw={(gw) => setTransfersGw(gw)}
@@ -216,22 +228,26 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
-
-            {/* Chip Usage Metrics */}
-            <ChipMatrix profiles={profilesData} />
           </div>
         )}
 
         {/* Tab 2: Stats */}
         {activeTab === "race" && (
           <div className="space-y-6">
-            {/* Animated Bar Chart Race & Trail Graph with bottom Scrubber */}
-            <BarChartRace profiles={profilesData} maxGw={maxAvailableGw} />
-
             {/* Form vs Hits Behavioral Matrix */}
             <FormHitsMatrix
               standings={standingsData?.standings || []}
               selectedGw={maxAvailableGw}
+            />
+          </div>
+        )}
+
+        {/* Tab 3: Season Highlights */}
+        {activeTab === "highlights" && (
+          <div className="space-y-6">
+            <HighlightsBanner
+              cards={highlightCards}
+              onSelectManager={handleSelectManagerByName}
             />
           </div>
         )}

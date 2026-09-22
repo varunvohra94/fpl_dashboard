@@ -4,16 +4,17 @@ import React, { useState } from "react";
 import {
   Sparkles,
   ArrowUpDown,
-  Search,
   Trophy,
   Calendar,
   ChevronDown,
   Globe,
 } from "lucide-react";
-import { StandingsEntry } from "../lib/types";
+import { StandingsEntry, ManagerProfileResponse } from "../lib/types";
+import { RankTrajectoryChart } from "./RankTrajectoryChart";
 
 interface StandingsTableProps {
   standings: StandingsEntry[];
+  profiles?: ManagerProfileResponse[];
   selectedGw: number;
   maxAvailableGw: number;
   onSelectGw?: (gw: number) => void;
@@ -32,12 +33,13 @@ type SortField =
 
 export const StandingsTable: React.FC<StandingsTableProps> = ({
   standings,
+  profiles = [],
   selectedGw,
   maxAvailableGw,
   onSelectGw,
   onSelectManager,
 }) => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "graph">("table");
   const [viewScope, setViewScope] = useState<ViewScope>("season");
   const [sortField, setSortField] = useState<SortField>("league_rank");
   const [sortAsc, setSortAsc] = useState(true);
@@ -65,19 +67,12 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
     }
   };
 
-  // 3. Filter by search query
-  const filteredStandings = rankedData
-    .filter((s) => {
-      const pName = (s.player_name || "").toLowerCase();
-      const eName = (s.entry_name || "").toLowerCase();
-      const query = searchTerm.toLowerCase();
-      return pName.includes(query) || eName.includes(query);
-    })
-    .sort((a, b) => {
-      const valA = a[sortField] ?? 0;
-      const valB = b[sortField] ?? 0;
-      return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
-    });
+  // 3. Sort standings
+  const sortedStandings = [...rankedData].sort((a, b) => {
+    const valA = a[sortField] ?? 0;
+    const valB = b[sortField] ?? 0;
+    return sortAsc ? (valA > valB ? 1 : -1) : valA < valB ? 1 : -1;
+  });
 
   const getFormColor = (form: number | null) => {
     if (form === null || form === undefined)
@@ -122,24 +117,42 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
-      {/* Table Header Controls */}
-      <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-base sm:text-lg font-black text-white tracking-tight">
+    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full min-h-[560px]">
+      {/* Table / Graph Header Controls */}
+      <div className="p-3 sm:p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <h3 className="text-sm sm:text-lg font-black text-white tracking-tight">
             FPL Showdown
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {viewScope === "season"
-              ? "Net Points (After Hits)"
-              : `Gameweek ${activeDisplayGw} Scores`}
-          </p>
+
+          {/* Clean View Toggle: Table | Graph (No emoticons) */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode("graph")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "graph"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Graph
+            </button>
+          </div>
         </div>
 
-        {/* View Scope Dropdown & Search Bar */}
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          {/* Unified Scope Dropdown Menu */}
-          <div className="relative">
+        {/* View Scope Dropdown (Active in Table Mode) */}
+        {viewMode === "table" && (
+          <div className="relative w-full sm:w-auto">
             <select
               value={viewScope === "season" ? "season" : String(activeDisplayGw)}
               onChange={(e) => {
@@ -158,7 +171,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                 }
               }}
               aria-label="Select Standings Scope"
-              className="appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
+              className="w-full sm:w-auto appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 sm:py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
             >
               <option value="season">🏆 Overall Season</option>
               {Array.from(
@@ -172,36 +185,25 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           </div>
-
-          {/* Search Bar */}
-          <div className="relative flex-1 sm:w-60 lg:w-64 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search manager or squad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors shadow-sm"
-            />
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto flex-1">
-        <table className="w-full text-left text-xs min-w-[700px]">
+      {/* Table vs Graph Body */}
+      {viewMode === "table" ? (
+        <div className="overflow-x-auto sm:overflow-x-visible flex-1">
+        <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
               <th
                 onClick={() => handleSort("league_rank")}
-                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
+                className="py-2 px-2 sm:py-2.5 sm:px-3.5 cursor-pointer hover:text-white transition-colors w-9 sm:w-14 text-center sm:text-left"
               >
-                <div className="flex items-center gap-1">
-                  <span>League Rank</span>
-                  <ArrowUpDown className="h-3 w-3" />
+                <div className="flex items-center justify-center sm:justify-start gap-1">
+                  <span>#</span>
+                  <ArrowUpDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 </div>
               </th>
-              <th className="py-2.5 px-3.5">Manager / Team</th>
+              <th className="py-2 px-2 sm:py-2.5 sm:px-3.5">Manager / Team</th>
 
               {/* Main Net Points Column */}
               <th
@@ -210,15 +212,13 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     viewScope === "season" ? "total_net_points" : "net_points"
                   )
                 }
-                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
+                className="py-2 px-2 sm:py-2.5 sm:px-3.5 cursor-pointer hover:text-white transition-colors text-right sm:text-left"
               >
-                <div className="flex items-center gap-1">
+                <div className="flex items-center justify-end sm:justify-start gap-1">
                   <span>
-                    {viewScope === "season"
-                      ? "Season Net Points"
-                      : `GW${activeDisplayGw} Net Score`}
+                    {viewScope === "season" ? "Net Pts" : "GW Net"}
                   </span>
-                  <ArrowUpDown className="h-3 w-3" />
+                  <ArrowUpDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 </div>
               </th>
 
@@ -240,11 +240,11 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               {/* Rolling 3-GW Form */}
               <th
                 onClick={() => handleSort("rolling_3_avg")}
-                className="py-2.5 px-3.5 cursor-pointer hover:text-white transition-colors"
+                className="py-2 px-2 sm:py-2.5 sm:px-3.5 cursor-pointer hover:text-white transition-colors text-right sm:text-left"
               >
-                <div className="flex items-center gap-1">
-                  <span>3-GW Form</span>
-                  <ArrowUpDown className="h-3 w-3" />
+                <div className="flex items-center justify-end sm:justify-start gap-1">
+                  <span>Form</span>
+                  <ArrowUpDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                 </div>
               </th>
 
@@ -280,20 +280,20 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
               </th>
 
               {/* Active Chip Badge Header */}
-              <th className="py-2.5 px-3.5 text-center w-36 min-w-[140px] hidden sm:table-cell">
+              <th className="py-2.5 px-3.5 text-center w-32 min-w-[120px] hidden sm:table-cell">
                 Chip
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 tabular-nums">
-            {filteredStandings.length === 0 ? (
+            {sortedStandings.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-10 text-center text-slate-500">
-                  No rivals found matching your search.
+                  No rivals found.
                 </td>
               </tr>
             ) : (
-              filteredStandings.map((m) => {
+              sortedStandings.map((m) => {
                 const isLeader = m.league_rank === 1;
                 const chipInfo = getChipLabel(m.chip_used);
 
@@ -308,10 +308,10 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     }`}
                   >
                     {/* Mini-League Sequential Rank (1..N) */}
-                    <td className="py-2.5 px-3.5">
-                      <div className="flex items-center gap-2">
+                    <td className="py-2 px-2 sm:py-2.5 sm:px-3.5">
+                      <div className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2">
                         <span
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black transition-transform ${
+                          className={`w-5 h-5 sm:w-6 sm:h-6 rounded-md sm:rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-black transition-transform ${
                             isLeader
                               ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 shadow-md shadow-emerald-500/30 scale-105"
                               : m.league_rank <= 3
@@ -322,25 +322,41 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                           {m.league_rank}
                         </span>
                         {isLeader && (
-                          <Sparkles className="h-3 w-3 text-emerald-400 shrink-0" />
+                          <Sparkles className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-emerald-400 shrink-0 hidden sm:block" />
                         )}
                       </div>
                     </td>
 
                     {/* Manager & Team Name */}
-                    <td className="py-2.5 px-3.5">
-                      <div className="truncate max-w-[140px] sm:max-w-[200px]">
+                    <td className="py-2 px-2 sm:py-2.5 sm:px-3.5">
+                      <div className="max-w-[130px] xs:max-w-[160px] sm:max-w-[200px]">
                         <span className="font-extrabold text-white text-xs sm:text-sm block truncate group-hover:text-emerald-400">
                           {m.player_name || "Manager"}
                         </span>
-                        <span className="text-[11px] text-slate-400 block truncate font-medium">
-                          {m.entry_name || "Squad"}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[10px] sm:text-[11px] text-slate-400 truncate font-medium">
+                            {m.entry_name || "Squad"}
+                          </span>
+                          {/* Mobile-only micro chip badge */}
+                          {chipInfo && (
+                            <span
+                              className={`inline-flex sm:hidden text-[9px] font-bold px-1.5 py-0.2 rounded-full border uppercase tracking-wider shrink-0 leading-tight ${chipInfo.color}`}
+                            >
+                              {chipInfo.name}
+                            </span>
+                          )}
+                          {/* Mobile-only hits indicator */}
+                          {(m.event_transfers_cost ?? 0) > 0 && (
+                            <span className="inline-flex md:hidden text-[9px] font-bold px-1 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
+                              -{m.event_transfers_cost}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 
                     {/* Primary Net Points Score (Cumulative or Single GW) */}
-                    <td className="py-2.5 px-3.5 font-black text-sm text-emerald-400">
+                    <td className="py-2 px-2 sm:py-2.5 sm:px-3.5 font-black text-xs sm:text-sm text-emerald-400 text-right sm:text-left whitespace-nowrap">
                       {viewScope === "season"
                         ? `${m.total_net_points ?? m.total_points ?? 0} pts`
                         : `${m.net_points ?? m.points ?? 0} pts`}
@@ -360,9 +376,9 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </td>
 
                     {/* Rolling 3-GW Form Indicator */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2 px-2 sm:py-2.5 sm:px-3.5 text-right sm:text-left">
                       <span
-                        className={`inline-flex items-center text-[11px] font-black px-2 py-0.5 rounded-lg border ${getFormColor(
+                        className={`inline-flex items-center text-[10px] sm:text-[11px] font-black px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded-md sm:rounded-lg border ${getFormColor(
                           m.rolling_3_avg
                         )}`}
                       >
@@ -385,7 +401,7 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
                     </td>
 
                     {/* Active Chip Badge Cell */}
-                    <td className="py-2.5 px-3.5 text-center w-36 min-w-[140px] whitespace-nowrap hidden sm:table-cell">
+                    <td className="py-2.5 px-3.5 text-center w-32 min-w-[120px] whitespace-nowrap hidden sm:table-cell">
                       {chipInfo ? (
                         <span
                           className={`inline-flex items-center justify-center text-[10px] font-bold px-3 py-1 rounded-full border uppercase tracking-wide whitespace-nowrap shadow-sm leading-none ${chipInfo.color}`}
@@ -403,6 +419,15 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           </tbody>
         </table>
       </div>
+      ) : (
+        <div className="flex-1 p-2 sm:p-4 flex flex-col justify-between">
+          <RankTrajectoryChart
+            profiles={profiles}
+            maxGw={maxAvailableGw}
+            isEmbedded={true}
+          />
+        </div>
+      )}
     </div>
   );
 };
