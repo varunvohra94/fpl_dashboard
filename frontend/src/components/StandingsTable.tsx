@@ -10,10 +10,12 @@ import {
   ChevronDown,
   Globe,
 } from "lucide-react";
-import { StandingsEntry } from "../lib/types";
+import { StandingsEntry, ManagerProfileResponse } from "../lib/types";
+import { RankTrajectoryChart } from "./RankTrajectoryChart";
 
 interface StandingsTableProps {
   standings: StandingsEntry[];
+  profiles?: ManagerProfileResponse[];
   selectedGw: number;
   maxAvailableGw: number;
   onSelectGw?: (gw: number) => void;
@@ -32,11 +34,13 @@ type SortField =
 
 export const StandingsTable: React.FC<StandingsTableProps> = ({
   standings,
+  profiles = [],
   selectedGw,
   maxAvailableGw,
   onSelectGw,
   onSelectManager,
 }) => {
+  const [viewMode, setViewMode] = useState<"table" | "graph">("table");
   const [searchTerm, setSearchTerm] = useState("");
   const [viewScope, setViewScope] = useState<ViewScope>("season");
   const [sortField, setSortField] = useState<SortField>("league_rank");
@@ -122,73 +126,104 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
   const activeDisplayGw = selectedGw > 0 ? selectedGw : maxAvailableGw;
 
   return (
-    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
-      {/* Table Header Controls */}
+    <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full min-h-[560px]">
+      {/* Table / Graph Header Controls */}
       <div className="p-3 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-        <div>
-          <h3 className="text-sm sm:text-lg font-black text-white tracking-tight">
-            FPL Showdown
-          </h3>
-          <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-            {viewScope === "season"
-              ? "Net Points (After Hits)"
-              : `Gameweek ${activeDisplayGw} Scores`}
-          </p>
-        </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+          <div>
+            <h3 className="text-sm sm:text-lg font-black text-white tracking-tight">
+              FPL Showdown
+            </h3>
+            <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+              {viewMode === "table"
+                ? viewScope === "season"
+                  ? "Net Points (After Hits)"
+                  : `Gameweek ${activeDisplayGw} Scores`
+                : "Live Rank Trajectory"}
+            </p>
+          </div>
 
-        {/* View Scope Dropdown & Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          {/* Unified Scope Dropdown Menu */}
-          <div className="relative w-full sm:w-auto">
-            <select
-              value={viewScope === "season" ? "season" : String(activeDisplayGw)}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "season") {
-                  setViewScope("season");
-                  setSortField("league_rank");
-                  setSortAsc(true);
-                  onSelectGw?.(0);
-                } else {
-                  const gwNum = Number(val);
-                  setViewScope("gameweek");
-                  setSortField("league_rank");
-                  setSortAsc(true);
-                  onSelectGw?.(gwNum);
-                }
-              }}
-              aria-label="Select Standings Scope"
-              className="w-full sm:w-auto appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 sm:py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
+          {/* Clean View Toggle: Table | Graph (No emoticons) */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
             >
-              <option value="season">🏆 Overall Season</option>
-              {Array.from(
-                { length: Math.max(maxAvailableGw, 1) },
-                (_, i) => maxAvailableGw - i
-              ).map((gw) => (
-                <option key={gw} value={gw}>
-                  ⚽ Gameweek {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-          </div>
-
-          {/* Search Bar */}
-          <div className="relative flex-1 sm:w-60 lg:w-64 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search manager or squad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors shadow-sm"
-            />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode("graph")}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                viewMode === "graph"
+                  ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Graph
+            </button>
           </div>
         </div>
+
+        {/* View Scope Dropdown & Search Bar (Active in Table Mode) */}
+        {viewMode === "table" && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            {/* Unified Scope Dropdown Menu */}
+            <div className="relative w-full sm:w-auto">
+              <select
+                value={viewScope === "season" ? "season" : String(activeDisplayGw)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "season") {
+                    setViewScope("season");
+                    setSortField("league_rank");
+                    setSortAsc(true);
+                    onSelectGw?.(0);
+                  } else {
+                    const gwNum = Number(val);
+                    setViewScope("gameweek");
+                    setSortField("league_rank");
+                    setSortAsc(true);
+                    onSelectGw?.(gwNum);
+                  }
+                }}
+                aria-label="Select Standings Scope"
+                className="w-full sm:w-auto appearance-none bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold py-1.5 sm:py-2 pl-3 pr-8 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer shadow-sm hover:border-slate-700 transition-colors"
+              >
+                <option value="season">🏆 Overall Season</option>
+                {Array.from(
+                  { length: Math.max(maxAvailableGw, 1) },
+                  (_, i) => maxAvailableGw - i
+                ).map((gw) => (
+                  <option key={gw} value={gw}>
+                    ⚽ Gameweek {gw} {gw === maxAvailableGw ? "(Latest)" : ""}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative flex-1 sm:w-60 lg:w-64 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search manager or squad..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/60 transition-colors shadow-sm"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto sm:overflow-x-visible flex-1">
+      {/* Table vs Graph Body */}
+      {viewMode === "table" ? (
+        <div className="overflow-x-auto sm:overflow-x-visible flex-1">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
@@ -417,6 +452,15 @@ export const StandingsTable: React.FC<StandingsTableProps> = ({
           </tbody>
         </table>
       </div>
+      ) : (
+        <div className="flex-1 p-2 sm:p-4 flex flex-col justify-between">
+          <RankTrajectoryChart
+            profiles={profiles}
+            maxGw={maxAvailableGw}
+            isEmbedded={true}
+          />
+        </div>
+      )}
     </div>
   );
 };

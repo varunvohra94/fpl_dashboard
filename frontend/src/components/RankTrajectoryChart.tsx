@@ -14,6 +14,7 @@ import { ManagerProfileResponse } from "../lib/types";
 interface RankTrajectoryChartProps {
   profiles: ManagerProfileResponse[];
   maxGw: number;
+  isEmbedded?: boolean;
 }
 
 interface TooltipData {
@@ -56,6 +57,7 @@ function easeInOutCubic(t: number): number {
 export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
   maxGw,
+  isEmbedded = false,
 }) => {
   const [currentGw, setCurrentGw] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -471,17 +473,29 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   };
 
   return (
-    <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-4 sm:p-6 shadow-2xl space-y-4">
+    <div
+      className={
+        isEmbedded
+          ? "w-full space-y-3 flex-1 flex flex-col justify-between"
+          : "rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-4 sm:p-6 shadow-2xl space-y-4"
+      }
+    >
       {/* ========================================================= */}
       {/* TOP HEADER: TITLE & SPOTLIGHT MANAGER DROPDOWN           */}
       {/* ========================================================= */}
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" />
-            FPL Showdown
-          </span>
-        </div>
+      <div
+        className={`flex items-center ${
+          isEmbedded ? "justify-end px-1 pb-1" : "justify-between gap-3 pb-3 border-b border-slate-800/80"
+        }`}
+      >
+        {!isEmbedded && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              FPL Showdown
+            </span>
+          </div>
+        )}
 
         {/* Spotlight Manager Dropdown */}
         <div ref={dropdownRef} className="relative">

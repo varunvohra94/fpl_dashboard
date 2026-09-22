@@ -205,6 +205,7 @@ export default function DashboardPage() {
               <div className="lg:col-span-7 xl:col-span-8 flex flex-col h-full">
                 <StandingsTable
                   standings={standingsData?.standings || []}
+                  profiles={profilesData}
                   selectedGw={standingsGw}
                   maxAvailableGw={maxAvailableGw}
                   onSelectGw={(gw) => setStandingsGw(gw)}
