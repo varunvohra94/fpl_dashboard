@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Layers,
   Sparkles,
+  MinusCircle,
 } from "lucide-react";
 import {
   TransferItem,
@@ -117,17 +118,54 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
     groupedMap[groupKey].transfersCount++;
   }
 
-  // Convert to array and sort groups by gameweek descending, then timestamp descending
-  const groups = Object.entries(groupedMap)
-    .sort(([, a], [, b]) => {
-      if ((b.gameweek || 0) !== (a.gameweek || 0)) {
-        return (b.gameweek || 0) - (a.gameweek || 0);
+  // Determine list of Gameweeks to display
+  const gameweekList = useMemo(() => {
+    if (selectedGw > 0) return [selectedGw];
+    const gws = new Set<number>();
+    (transfers || []).forEach((t) => {
+      if (t.gameweek) gws.add(t.gameweek);
+    });
+    if (maxAvailableGw > 0) {
+      // Populate gameweeks from maxAvailableGw down to 2
+      // (GW1 is initial squad selection before the season starts)
+      for (let i = maxAvailableGw; i >= 2; i--) {
+        gws.add(i);
       }
-      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return timeB - timeA;
-    })
-    .map(([key, group]) => ({ key, ...group }));
+    }
+    return Array.from(gws).sort((a, b) => b - a);
+  }, [selectedGw, transfers, maxAvailableGw]);
+
+  // For each gameweek, gather active transfer groups and no-transfer managers
+  const gameweekFeedData = useMemo(() => {
+    return gameweekList.map((gw) => {
+      // Active transfer groups for this GW
+      const activeGroups = Object.entries(groupedMap)
+        .filter(([, group]) => group.gameweek === gw)
+        .sort(([, a], [, b]) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        })
+        .map(([key, group]) => ({ key, ...group }));
+
+      const activeManagerIds = new Set(activeGroups.map((g) => g.managerId));
+
+      // Managers in profiles who made no transfers in this GW (GW1 is initial squad selection, so excluded)
+      const noTransferManagers =
+        gw > 1
+          ? (profiles || [])
+              .filter((p) => !activeManagerIds.has(p.id))
+              .sort((a, b) => (a.player_name || "").localeCompare(b.player_name || ""))
+          : [];
+
+      return {
+        gameweek: gw,
+        activeGroups,
+        noTransferManagers,
+        totalItems: activeGroups.length + noTransferManagers.length,
+      };
+    });
+  }, [gameweekList, groupedMap, profiles]);
 
   const toggleExpand = (groupKey: string) => {
     setExpandedGroups((prev) => ({
@@ -299,6 +337,44 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
     );
   };
 
+  const renderNoTransferCard = (manager: ManagerProfileResponse, gw: number) => {
+    const managerName =
+      manager.player_name ||
+      `${manager.player_first_name || ""} ${manager.player_last_name || ""}`.trim() ||
+      "Manager";
+    const entryName = manager.entry_name || "Squad";
+
+    return (
+      <div
+        key={`no-transfer-${manager.id}-gw${gw}`}
+        className="rounded-xl border border-slate-800/60 bg-slate-950/40 p-2.5 sm:p-3 transition-all hover:border-slate-700/80 hover:bg-slate-900/40 shadow-sm flex items-center justify-between gap-2"
+      >
+        {/* Manager & Squad Name */}
+        <div
+          onClick={() => onSelectManager?.(manager.id)}
+          className="cursor-pointer hover:text-emerald-400 transition-colors min-w-0"
+        >
+          <span className="text-xs sm:text-sm font-bold text-slate-300 block truncate">
+            {managerName}
+          </span>
+          <span className="text-[10px] sm:text-[11px] text-slate-400 block truncate font-medium">
+            {entryName}
+          </span>
+        </div>
+
+        {/* No Transfers Indicator Badge */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-900/90 text-slate-400 border border-slate-800/80 flex items-center gap-1 shadow-sm">
+            <MinusCircle className="h-2.5 w-2.5 text-slate-400" />
+            No transfers made
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const isOverallSeason = selectedGw === 0;
+
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
       {/* Header & Controls Bar */}
@@ -340,51 +416,80 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
 
       {/* Feed List */}
       <div className="p-3 sm:p-5 overflow-y-auto flex-1 min-h-0 max-h-[520px]">
-        {groups.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-xs">
-            No transfers recorded {selectedGw > 0 ? `for Gameweek ${selectedGw}` : ""}.
-          </div>
-        ) : selectedGw === 0 ? (
+        {isOverallSeason ? (
           /* Option 3: Vertical Timeline Rail (Active in Overall Season View to visually separate Gameweeks) */
-          <div className="relative pl-5 sm:pl-6 space-y-3.5">
-            {/* Continuous Vertical Timeline Rail Line */}
-            <div className="absolute left-2 sm:left-2.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-cyan-400 via-emerald-500/40 to-slate-800/80 rounded-full pointer-events-none" />
+          gameweekFeedData.every((d) => d.totalItems === 0) ? (
+            <div className="py-12 text-center text-slate-500 text-xs">
+              No transfers recorded for the season.
+            </div>
+          ) : (
+            <div className="relative pl-5 sm:pl-6 space-y-4">
+              {/* Continuous Vertical Timeline Rail Line */}
+              <div className="absolute left-2 sm:left-2.5 top-2 bottom-2 w-0.5 bg-gradient-to-b from-cyan-400 via-emerald-500/40 to-slate-800/80 rounded-full pointer-events-none" />
 
-            {groups.map((group, idx) => {
-              const isFirstOfGw =
-                idx === 0 || groups[idx - 1].gameweek !== group.gameweek;
+              {gameweekFeedData.map((gwData) => {
+                if (gwData.totalItems === 0) return null;
 
-              return (
-                <div key={group.key} className="relative group/card">
-                  {/* Gameweek Milestone Node on the Vertical Timeline */}
-                  {isFirstOfGw && (
+                return (
+                  <div key={`gw-section-${gwData.gameweek}`} className="space-y-3">
+                    {/* Gameweek Milestone Node on the Vertical Timeline */}
                     <div className="flex items-center gap-2 mb-2.5 -ml-5 sm:-ml-6 pt-1.5">
                       <div className="w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-slate-950 border-2 border-cyan-400 shadow-md shadow-cyan-500/30 flex items-center justify-center shrink-0 z-10">
                         <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                       </div>
                       <span className="text-[11px] font-black uppercase tracking-wider text-cyan-300 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 shadow-sm">
-                        Gameweek {group.gameweek}
+                        Gameweek {gwData.gameweek}
                       </span>
                     </div>
-                  )}
 
-                  {/* Connecting Node Dot for Individual Card */}
-                  <div className="absolute -left-5 sm:-left-6 top-4 w-2 h-2 rounded-full bg-slate-700 border border-slate-950 group-hover/card:bg-cyan-400 group-hover/card:scale-125 transition-all z-10" />
+                    {/* 1. Active Transfer Cards for this GW */}
+                    {gwData.activeGroups.map((group) => (
+                      <div key={group.key} className="relative group/card">
+                        {/* Connecting Node Dot for Individual Card */}
+                        <div className="absolute -left-5 sm:-left-6 top-4 w-2 h-2 rounded-full bg-slate-700 border border-slate-950 group-hover/card:bg-cyan-400 group-hover/card:scale-125 transition-all z-10" />
+                        {renderCard(group)}
+                      </div>
+                    ))}
 
-                  {renderCard(group)}
-                </div>
-              );
-            })}
-          </div>
+                    {/* 2. No-Transfer Managers for this GW (Towards the last) */}
+                    {gwData.noTransferManagers.map((manager) => (
+                      <div
+                        key={`no-transfer-${manager.id}-gw${gwData.gameweek}`}
+                        className="relative group/card"
+                      >
+                        {/* Connecting Node Dot for Individual Card */}
+                        <div className="absolute -left-5 sm:-left-6 top-4 w-2 h-2 rounded-full bg-slate-800 border border-slate-950 group-hover/card:bg-slate-400 transition-all z-10" />
+                        {renderNoTransferCard(manager, gwData.gameweek)}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )
         ) : (
           /* Clean Direct Feed Cards (Active when filtered to a specific Gameweek) */
-          <div className="space-y-3">
-            {groups.map((group) => (
-              <div key={group.key}>
-                {renderCard(group)}
-              </div>
-            ))}
-          </div>
+          !gameweekFeedData[0] || gameweekFeedData[0].totalItems === 0 ? (
+            <div className="py-12 text-center text-slate-500 text-xs">
+              {selectedGw === 1
+                ? "Gameweek 1 represents initial squad selection (no transfer activity)."
+                : `No transfers recorded for Gameweek ${selectedGw}.`}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* 1. Active Transfer Cards for selected GW */}
+              {gameweekFeedData[0].activeGroups.map((group) => (
+                <div key={group.key}>{renderCard(group)}</div>
+              ))}
+
+              {/* 2. No-Transfer Managers for selected GW (Towards the last) */}
+              {gameweekFeedData[0].noTransferManagers.map((manager) => (
+                <div key={`no-transfer-${manager.id}-gw${selectedGw}`}>
+                  {renderNoTransferCard(manager, selectedGw)}
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>
