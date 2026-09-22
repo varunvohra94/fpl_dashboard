@@ -67,11 +67,6 @@ export const CaptaincyTable: React.FC<CaptaincyTableProps> = ({
           <h3 className="text-lg sm:text-xl font-extrabold text-white mt-1">
             Best Captain Picker
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {isOverall
-              ? "Managers ranked by highest cumulative captain score across the season"
-              : `Captain returns and armband impact for Gameweek ${selectedGw}`}
-          </p>
         </div>
 
         {/* Gameweek Dropdown */}
