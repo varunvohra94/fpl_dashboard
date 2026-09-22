@@ -1,17 +1,23 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
   Layers,
-  ArrowRightLeft,
+  Sparkles,
+  Zap,
 } from "lucide-react";
-import { TransferItem, ManagerTransferGroup } from "../lib/types";
+import {
+  TransferItem,
+  ManagerTransferGroup,
+  ManagerProfileResponse,
+} from "../lib/types";
 
 interface TransferFeedProps {
   transfers: TransferItem[];
+  profiles?: ManagerProfileResponse[];
   selectedGw: number;
   maxAvailableGw: number;
   onSelectGw?: (gw: number) => void;
@@ -20,12 +26,76 @@ interface TransferFeedProps {
 
 export const TransferFeed: React.FC<TransferFeedProps> = ({
   transfers,
+  profiles = [],
   selectedGw,
   maxAvailableGw,
   onSelectGw,
   onSelectManager,
 }) => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  // Lookup map: (managerId_gw) -> { chip: string | null, hitsCost: number }
+  const managerGwMeta = useMemo(() => {
+    const map: Record<string, { chip: string | null; hitsCost: number }> = {};
+    (profiles || []).forEach((p) => {
+      // 1. From history
+      (p.history || []).forEach((h) => {
+        const key = `${p.id}_gw${h.gameweek}`;
+        map[key] = {
+          chip: h.chip_used || null,
+          hitsCost: h.event_transfers_cost || 0,
+        };
+      });
+      // 2. From chips_used array
+      (p.chips_used || []).forEach((c) => {
+        const key = `${p.id}_gw${c.gameweek}`;
+        if (map[key]) {
+          if (!map[key].chip && c.chip) {
+            map[key].chip = c.chip;
+          }
+        } else {
+          map[key] = {
+            chip: c.chip || null,
+            hitsCost: 0,
+          };
+        }
+      });
+    });
+    return map;
+  }, [profiles]);
+
+  const getChipBadgeInfo = (chip: string | null) => {
+    if (!chip) return null;
+    const lower = chip.toLowerCase();
+    if (lower === "wildcard" || lower === "wc") {
+      return {
+        label: "Wildcard",
+        color: "bg-purple-500/20 text-purple-300 border-purple-500/40",
+      };
+    }
+    if (lower === "freehit" || lower === "fh") {
+      return {
+        label: "Free Hit",
+        color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
+      };
+    }
+    if (lower === "bboost" || lower === "bb" || lower === "benchboost") {
+      return {
+        label: "Bench Boost",
+        color: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+      };
+    }
+    if (lower === "3xc" || lower === "tc" || lower === "triplecaptain") {
+      return {
+        label: "Triple Captain",
+        color: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+      };
+    }
+    return {
+      label: chip.toUpperCase(),
+      color: "bg-slate-700 text-slate-300 border-slate-600",
+    };
+  };
 
   // 1. Filter transfers based on selectedGw (0 = Overall Season)
   const activeTransfers =
@@ -45,7 +115,6 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
   });
 
   for (const t of sortedTransfers) {
-    // Unique key per manager per gameweek batch
     const groupKey = `${t.manager_id}_gw${t.gameweek}`;
 
     if (!groupedMap[groupKey]) {
@@ -82,7 +151,7 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
 
   return (
     <div className="rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md overflow-hidden shadow-2xl flex flex-col h-full">
-      {/* Header & Controls Bar - Matched with StandingsTable Banner */}
+      {/* Header & Controls Bar */}
       <div className="p-3 sm:p-5 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h3 className="text-sm sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
@@ -132,14 +201,20 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
           </div>
         ) : (
           groups.map((group) => {
-            const isOverhaul = group.transfersCount >= 3;
+            const meta = managerGwMeta[`${group.managerId}_gw${group.gameweek}`] || {
+              chip: null,
+              hitsCost: 0,
+            };
+            const chipBadge = getChipBadgeInfo(meta.chip);
+            const hasHits = meta.hitsCost > 0;
+            const hasMultipleTransfers = group.transfersCount > 2;
             const isExpanded = !!expandedGroups[group.key];
 
             return (
               <div
                 key={group.key}
                 className={`rounded-xl border transition-all ${
-                  isOverhaul
+                  chipBadge
                     ? "bg-gradient-to-br from-purple-950/30 via-slate-900/90 to-slate-900/60 border-purple-500/30 hover:border-purple-400/50"
                     : "bg-slate-950/60 border-slate-800 hover:border-slate-700"
                 } p-3 sm:p-3.5`}
@@ -158,7 +233,8 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Badges: Gameweek, Hits, and Chip Indicator */}
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0 justify-end">
                     {/* Gameweek pill when viewing overall season */}
                     {selectedGw === 0 && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-800 text-cyan-400 border border-slate-700">
@@ -166,18 +242,36 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                       </span>
                     )}
 
-                    {isOverhaul && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-                        <Layers className="h-2.5 w-2.5" />
-                        Overhaul ({group.transfersCount})
+                    {/* Hits Cost Badge */}
+                    {hasHits && (
+                      <span
+                        className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm"
+                        title={`Spent -${meta.hitsCost} points in transfer hits`}
+                      >
+                        -{meta.hitsCost} pts
                       </span>
                     )}
+
+                    {/* Chip Badge (Wildcard, Free Hit, etc.) or Overhaul indicator */}
+                    {chipBadge ? (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 shadow-sm ${chipBadge.color}`}
+                      >
+                        <Sparkles className="h-2.5 w-2.5" />
+                        {chipBadge.label} ({group.transfersCount})
+                      </span>
+                    ) : hasMultipleTransfers ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1">
+                        <Layers className="h-2.5 w-2.5" />
+                        {group.transfersCount} Transfers
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
                 {/* Transfer List or Collapsible Drawer */}
-                {!isOverhaul ? (
-                  // Regular Transfers List
+                {!hasMultipleTransfers ? (
+                  // Regular Transfers List (1 or 2 moves)
                   <div className="space-y-1.5 mt-2">
                     {group.transfers.map((t) => (
                       <div
@@ -219,9 +313,9 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                     ))}
                   </div>
                 ) : (
-                  // Overhaul Accordion
+                  // Multiple Moves Accordion (>2 transfers)
                   <div className="mt-2">
-                    {/* Compact Preview (First 2 moves) */}
+                    {/* Compact Preview: First 2 moves */}
                     <div className="space-y-1.5">
                       {(isExpanded ? group.transfers : group.transfers.slice(0, 2)).map(
                         (t) => (
@@ -254,12 +348,12 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                     {/* Accordion Toggle Button */}
                     <button
                       onClick={() => toggleExpand(group.key)}
-                      className="mt-2 w-full py-1.5 px-3 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="mt-2 w-full py-1.5 px-3 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {isExpanded ? (
                         <>
                           <ChevronUp className="h-3.5 w-3.5" />
-                          <span>Collapse squad overhaul</span>
+                          <span>Collapse transfers</span>
                         </>
                       ) : (
                         <>

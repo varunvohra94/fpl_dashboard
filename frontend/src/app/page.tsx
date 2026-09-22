@@ -221,6 +221,7 @@ export default function DashboardPage() {
                 {/* Transfer Feed with its own GW Dropdown */}
                 <TransferFeed
                   transfers={transfersData?.transfers || []}
+                  profiles={profilesData}
                   selectedGw={transfersGw}
                   maxAvailableGw={maxAvailableGw}
                   onSelectGw={(gw) => setTransfersGw(gw)}
