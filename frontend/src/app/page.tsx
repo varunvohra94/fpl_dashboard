@@ -24,7 +24,7 @@ import { HighlightsBanner } from "../components/HighlightsBanner";
 import { StandingsTable } from "../components/StandingsTable";
 import { TransferFeed } from "../components/TransferFeed";
 import { ManagerModal } from "../components/ManagerModal";
-import { BarChartRace } from "../components/BarChartRace";
+import { RankTrajectoryChart } from "../components/RankTrajectoryChart";
 import { FormHitsMatrix } from "../components/FormHitsMatrix";
 import { ChipMatrix } from "../components/ChipMatrix";
 
@@ -225,8 +225,8 @@ export default function DashboardPage() {
         {/* Tab 2: Stats */}
         {activeTab === "race" && (
           <div className="space-y-6">
-            {/* Animated Bar Chart Race & Trail Graph with bottom Scrubber */}
-            <BarChartRace profiles={profilesData} maxGw={maxAvailableGw} />
+            {/* Animated GW Rank Trajectory Trail Graph with Integrated Scrubber HUD */}
+            <RankTrajectoryChart profiles={profilesData} maxGw={maxAvailableGw} />
 
             {/* Form vs Hits Behavioral Matrix */}
             <FormHitsMatrix

@@ -1,14 +1,19 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import {
+  ChevronDown,
+  Sparkles,
+  X,
+  Play,
+  Pause,
+  RotateCcw,
+} from "lucide-react";
 import { ManagerProfileResponse } from "../lib/types";
 
 interface RankTrajectoryChartProps {
   profiles: ManagerProfileResponse[];
-  currentGw: number;
   maxGw: number;
-  transitionDuration?: string;
 }
 
 interface TooltipData {
@@ -40,6 +45,9 @@ const TRAIL_COLORS = [
   "#E11D48", // Crimson
 ];
 
+const PLAYBACK_INTERVAL_MS = 2200;
+const TRANSITION_DURATION_MS = 2000;
+
 // Smooth cubic bezier easing for organic motion
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -47,15 +55,40 @@ function easeInOutCubic(t: number): number {
 
 export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   profiles,
-  currentGw,
   maxGw,
-  transitionDuration = "2000ms",
 }) => {
+  const [currentGw, setCurrentGw] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [hoveredManagerId, setHoveredManagerId] = useState<number | null>(null);
   const [selectedManagerId, setSelectedManagerId] = useState<number | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const safeMaxGw = Math.max(maxGw, 1);
+  const totalManagers = profiles?.length || 0;
+
+  // Playback timer loop
+  useEffect(() => {
+    if (isPlaying) {
+      timerRef.current = setInterval(() => {
+        setCurrentGw((prev) => {
+          if (prev >= safeMaxGw) {
+            setIsPlaying(false);
+            return safeMaxGw;
+          }
+          return prev + 1;
+        });
+      }, PLAYBACK_INTERVAL_MS);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPlaying, safeMaxGw]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -87,7 +120,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     setAnimToGw(to);
     setAnimProgress(0);
 
-    const durationMs = parseInt(transitionDuration) || 1600;
+    const durationMs = TRANSITION_DURATION_MS;
     const startTime = performance.now();
     let animationFrameId: number;
 
@@ -111,13 +144,30 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [currentGw, transitionDuration]);
+  }, [currentGw]);
 
   if (!profiles || profiles.length === 0) return null;
 
-  const totalManagers = profiles.length;
-  const safeMaxGw = Math.max(maxGw, 1);
   const gameweeks = Array.from({ length: safeMaxGw + 1 }, (_, i) => i); // [0, 1, 2, ..., safeMaxGw]
+  const isDenseMode = safeMaxGw <= 8;
+
+  // Adaptive milestone calculation for scaling across full 38-gameweek seasons
+  const getMilestones = (max: number): number[] => {
+    if (max <= 8) {
+      return Array.from({ length: max + 1 }, (_, i) => i);
+    }
+    const step = max <= 16 ? 2 : max <= 28 ? 4 : 5;
+    const milestones: number[] = [0];
+    for (let gw = step; gw < max; gw += step) {
+      milestones.push(gw);
+    }
+    if (!milestones.includes(max)) {
+      milestones.push(max);
+    }
+    return milestones;
+  };
+
+  const milestoneGws = getMilestones(safeMaxGw);
 
   // Continuous floating gameweek progress
   const currentGwFloat = animFromGw + (animToGw - animFromGw) * animProgress;
@@ -212,11 +262,11 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
     : null;
 
   // =========================================================
-  // MOBILE: VERTICALLY LONGER SMOOTH ROLLING HORIZON ENGINE
+  // MOBILE: VERTICALLY SPACIOUS SMOOTH ROLLING HORIZON ENGINE
   // =========================================================
   const mSvgWidth = 380;
-  const mSvgHeight = Math.max(380, totalManagers * 50 + 40); // Vertically longer (~440px)
-  const mPadding = { top: 32, right: 16, bottom: 42, left: 46 };
+  const mSvgHeight = Math.max(500, totalManagers * 64 + 40); // Vertically spacious (~550px)
+  const mPadding = { top: 32, right: 16, bottom: 44, left: 46 };
   const mGraphHeight = mSvgHeight - mPadding.top - mPadding.bottom;
   const mGwStepWidth = 95; // Spacious 95px per gameweek
 
@@ -323,8 +373,8 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   // DESKTOP HORIZONTAL BUMP CHART COORDINATES
   // ==========================================
   const dSvgWidth = 860;
-  const dSvgHeight = Math.max(320, totalManagers * 44 + 40);
-  const dPadding = { top: 35, right: 150, bottom: 45, left: 60 };
+  const dSvgHeight = Math.max(480, totalManagers * 60 + 60); // Vertically spacious (~540px)
+  const dPadding = { top: 38, right: 155, bottom: 48, left: 60 };
   const dGraphWidth = dSvgWidth - dPadding.left - dPadding.right;
   const dGraphHeight = dSvgHeight - dPadding.top - dPadding.bottom;
 
@@ -421,12 +471,19 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
   };
 
   return (
-    <div className="w-full space-y-3">
+    <div className="rounded-3xl bg-slate-900/80 border border-slate-800/90 backdrop-blur-xl p-4 sm:p-6 shadow-2xl space-y-4">
       {/* ========================================================= */}
-      {/* MANAGER SELECTION SPOTLIGHT CAPSULE                       */}
+      {/* TOP HEADER: TITLE & SPOTLIGHT MANAGER DROPDOWN           */}
       {/* ========================================================= */}
-      <div className="flex items-center justify-end px-1 pb-0.5">
-        {/* Custom Glassmorphic Spotlight Dropdown */}
+      <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            FPL Showdown
+          </span>
+        </div>
+
+        {/* Spotlight Manager Dropdown */}
         <div ref={dropdownRef} className="relative">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -506,7 +563,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Show All Managers</span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-normal">8 lines</span>
+                <span className="text-[10px] text-slate-400 font-normal">{totalManagers} lines</span>
               </button>
 
               <div className="my-1 border-t border-slate-800/60" />
@@ -567,10 +624,9 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE VIEW: VERTICALLY LONGER SMOOTH ROLLING HORIZON WITH NAMES (< md)   */}
+      {/* MOBILE VIEW: VERTICALLY SPACIOUS ROLLING HORIZON WITH NAMES (< md)       */}
       {/* ========================================================================= */}
       <div className="block md:hidden">
-        {/* Rolling Horizon Canvas */}
         <div className="relative w-full rounded-2xl bg-slate-950/60 border border-slate-800/80 p-2 overflow-hidden shadow-xl">
           <svg
             viewBox={`0 0 ${mSvgWidth} ${mSvgHeight}`}
@@ -603,7 +659,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
               </clipPath>
             </defs>
 
-            {/* STATIC FIXED HORIZONTAL GRID LINES (#1 to #8) */}
+            {/* STATIC FIXED HORIZONTAL GRID LINES (#1 to #N) */}
             {Array.from({ length: totalManagers }, (_, i) => i + 1).map((rank) => {
               const y = getMobileY(rank);
               const isFirst = rank === 1;
@@ -660,7 +716,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                       />
                       <text
                         x={x}
-                        y={mPadding.top + mGraphHeight + 20}
+                        y={mPadding.top + mGraphHeight + 22}
                         textAnchor="middle"
                         fill={isCurrent ? "#00FF87" : "#94A3B8"}
                         fontSize="11"
@@ -706,7 +762,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         />
                       )}
 
-                      {/* Continuous active trail line (Created dynamically as dot glides) */}
+                      {/* Continuous active trail line */}
                       <path
                         d={activePath}
                         fill="none"
@@ -767,7 +823,7 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
                         );
                       })}
 
-                      {/* BIG SLIDING HEAD DOT & PLAYER NAME PILL (Locked along exact S-curve) */}
+                      {/* BIG SLIDING HEAD DOT & PLAYER NAME PILL */}
                       <g
                         key={`m-head-${p.id}`}
                         style={{
@@ -1262,6 +1318,183 @@ export const RankTrajectoryChart: React.FC<RankTrajectoryChartProps> = ({
             </div>
           </div>
         )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* INTEGRATED GRAPH CONTROLLER HUD (SINGLE PLAY BUTTON & SCRUBBER)          */}
+      {/* ========================================================================= */}
+      <div className="p-3 sm:p-4 rounded-2xl bg-slate-950/90 border border-slate-800/80 shadow-inner space-y-3">
+        {/* Play/Pause & Status Pill Header */}
+        <div className="flex items-center justify-between gap-3 text-xs font-bold text-slate-400">
+          <div className="flex items-center gap-2">
+            {/* Single Play / Pause Button */}
+            <button
+              onClick={() => {
+                if (currentGw >= safeMaxGw) {
+                  setCurrentGw(0);
+                  setIsPlaying(true);
+                } else {
+                  setIsPlaying(!isPlaying);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all cursor-pointer select-none"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <>
+                  <Pause className="h-3.5 w-3.5 fill-current" />
+                  <span>PAUSE</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>{currentGw >= safeMaxGw ? "REPLAY" : "PLAY"}</span>
+                </>
+              )}
+            </button>
+
+            {/* Reset to Start */}
+            <button
+              onClick={() => {
+                setIsPlaying(false);
+                setCurrentGw(0);
+              }}
+              title="Reset to Pre-Season Start"
+              className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer select-none"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Gameweek Status Badge */}
+          <span className="text-emerald-400 font-black text-xs sm:text-sm px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 shadow-sm inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            {currentGw === 0 ? (
+              <span>Pre-Season Start</span>
+            ) : (
+              <span>Gameweek {currentGw}</span>
+            )}
+          </span>
+        </div>
+
+        {/* Segmented Track & Custom Slider */}
+        <div className="relative py-1 flex items-center">
+          {/* Background Track */}
+          <div className="h-2.5 w-full bg-slate-900 border border-slate-800 rounded-full relative overflow-visible shadow-inner flex items-center">
+            {/* Active Progress Fill */}
+            <div
+              style={{
+                width: `${safeMaxGw > 0 ? (currentGw / safeMaxGw) * 100 : 0}%`,
+                transition: isPlaying
+                  ? `width ${TRANSITION_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
+                  : "width 150ms ease",
+              }}
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-md shadow-emerald-500/25"
+            />
+
+            {/* Notches / Tick dots along the track */}
+            {Array.from({ length: safeMaxGw + 1 }, (_, i) => i).map((gw) => {
+              const leftPercent = (gw / safeMaxGw) * 100;
+              const isPassed = gw <= currentGw;
+              const isCurrent = gw === currentGw;
+              const isMilestone = !isDenseMode
+                ? milestoneGws.includes(gw)
+                : true;
+
+              if (!isDenseMode && !isMilestone && !isCurrent) {
+                return (
+                  <div
+                    key={`track-tick-${gw}`}
+                    style={{ left: `${leftPercent}%` }}
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                  >
+                    <div
+                      className={`w-0.5 h-1.5 rounded-full ${
+                        isPassed ? "bg-emerald-400/50" : "bg-slate-700/80"
+                      }`}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={`track-tick-${gw}`}
+                  style={{ left: `${leftPercent}%` }}
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none z-10"
+                >
+                  <div
+                    className={`rounded-full transition-all duration-300 ${
+                      isCurrent
+                        ? "w-4 h-4 bg-emerald-300 border-2 border-slate-950 shadow-lg shadow-emerald-400/50 scale-110"
+                        : isPassed
+                          ? "w-2.5 h-2.5 bg-emerald-400 border border-slate-950"
+                          : "w-2 h-2 bg-slate-700 border border-slate-900"
+                    }`}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Draggable Range Input */}
+          <input
+            type="range"
+            min={0}
+            max={safeMaxGw}
+            step={1}
+            value={currentGw}
+            onChange={(e) => {
+              setIsPlaying(false);
+              setCurrentGw(Number(e.target.value));
+            }}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+            title={currentGw === 0 ? "Pre-Season Start" : `Gameweek ${currentGw}`}
+          />
+        </div>
+
+        {/* Milestone Buttons Below Slider */}
+        <div className="relative w-full h-7 flex items-center">
+          {milestoneGws.map((gw) => {
+            const leftPercent = (gw / safeMaxGw) * 100;
+            const isCurrent = gw === currentGw;
+            const isPassed = gw < currentGw;
+
+            return (
+              <button
+                key={`ruler-milestone-${gw}`}
+                onClick={() => {
+                  setIsPlaying(false);
+                  setCurrentGw(gw);
+                }}
+                style={{
+                  left: `${leftPercent}%`,
+                  transform:
+                    gw === 0
+                      ? "translateX(0%)"
+                      : gw === safeMaxGw
+                        ? "translateX(-100%)"
+                        : "translateX(-50%)",
+                }}
+                className={`absolute top-0 flex flex-col items-center group cursor-pointer transition-all ${
+                  isCurrent ? "z-20 scale-105" : "z-10 hover:scale-105"
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded transition-all ${
+                    isCurrent
+                      ? "bg-emerald-400 text-slate-950 font-black shadow-md shadow-emerald-400/30"
+                      : isPassed
+                        ? "text-emerald-400 hover:text-emerald-300 hover:bg-slate-800"
+                        : "text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+                  }`}
+                >
+                  {gw === 0 ? "Start" : `GW${gw}`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
