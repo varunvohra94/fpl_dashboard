@@ -172,13 +172,6 @@ export const TransferFeed: React.FC<TransferFeedProps> = ({
                         Overhaul ({group.transfersCount})
                       </span>
                     )}
-
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {new Date(group.timestamp).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
                   </div>
                 </div>
 
