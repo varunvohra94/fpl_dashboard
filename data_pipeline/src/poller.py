@@ -4,7 +4,9 @@ import asyncio
 import logging
 from typing import Any
 
-from app.models import PipelineMetadata
+from sqlalchemy import func, select
+
+from app.models import ManagerPick, PipelineMetadata
 
 from .fpl_client import FPLClient
 from .loader import PipelineLoader
@@ -28,22 +30,34 @@ class FPLPipelineRunner:
     async def sync_bootstrap(self) -> dict[str, Any]:
         """Fetch bootstrap-static payload and sync teams, elements, and pipeline metadata."""
         logger.info("Fetching master bootstrap-static payload from FPL API...")
-        bootstrap_data = await self.client.get_bootstrap_static()
+        data = await self.client.get_bootstrap_static()
 
-        teams = self.transformer.transform_teams(bootstrap_data)
-        elements = self.transformer.transform_elements(bootstrap_data)
-        meta_records = self.transformer.transform_pipeline_metadata(bootstrap_data)
+        teams = self.transformer.transform_teams(data)
+        elements = self.transformer.transform_elements(data)
+        events = data.get("events", [])
 
         async with await self.loader.get_session() as session, session.begin():
             await self.loader.load_teams(session, teams)
             await self.loader.load_elements(session, elements)
-            await self.loader.sync_pipeline_metadata(session, meta_records)
 
-        logger.info(
-            f"Bootstrap sync complete: {len(teams)} teams, {len(elements)} players, "
-            f"{len(meta_records)} gameweek states."
-        )
-        return bootstrap_data
+            for event in events:
+                gw_id = event["id"]
+                is_finished = event.get("finished", False)
+                is_checked = event.get("data_checked", False)
+                is_current = event.get("is_current", False)
+
+                status = "COMPLETED" if (is_finished and is_checked) else "PENDING"
+                if is_current and not is_finished:
+                    status = "RUNNING"
+
+                meta = await session.get(PipelineMetadata, gw_id)
+                if not meta:
+                    await self.loader.update_pipeline_status(session, gw_id, status)
+                elif meta.pipeline_run_status != "COMPLETED" and status == "COMPLETED":
+                    await self.loader.update_pipeline_status(session, gw_id, "COMPLETED")
+
+        logger.info("Bootstrap static sync completed successfully.")
+        return data
 
     async def ingest_league(
         self,
@@ -70,14 +84,23 @@ class FPLPipelineRunner:
 
         logger.info(f"Starting ingestion for League ID: {league_id}, Gameweek: {target_gw}...")
 
-        # 3. Check existing pipeline status for idempotency
+        # 3. Check existing pipeline status for idempotency & ensure manager picks are populated
         async with await self.loader.get_session() as session:
             meta = await session.get(PipelineMetadata, target_gw)
-            if meta and meta.pipeline_run_status == "COMPLETED" and not force:
+            picks_count_stmt = select(func.count(ManagerPick.manager_id)).where(
+                ManagerPick.gameweek == target_gw
+            )
+            has_picks = (await session.execute(picks_count_stmt)).scalar() or 0
+
+            if meta and meta.pipeline_run_status == "COMPLETED" and has_picks > 0 and not force:
                 logger.info(
-                    f"GW{target_gw} is already marked COMPLETED in database. Skipping (use force=True to re-run)."
+                    f"GW{target_gw} is already marked COMPLETED with {has_picks} picks in database. Skipping (use force=True to re-run)."
                 )
                 return {"status": "SKIPPED", "gameweek": target_gw, "reason": "Already completed"}
+            if meta and meta.pipeline_run_status == "COMPLETED" and has_picks == 0:
+                logger.info(
+                    f"GW{target_gw} is marked COMPLETED but has 0 manager picks. Auto-re-ingesting to populate picks..."
+                )
 
         # 4. Update status to RUNNING
         async with await self.loader.get_session() as session:
@@ -188,7 +211,26 @@ class FPLPipelineRunner:
     async def poll_and_execute(self, league_id: int, force: bool = False) -> dict[str, Any]:
         """
         Scheduled poller entrypoint:
-        Queries bootstrap-static, inspects current gameweek, and runs ETL if ready.
+        Queries bootstrap-static, inspects finalized gameweeks, auto-backfills any missing
+        historical picks, and runs ETL for current/target gameweek if ready.
         """
         logger.info("Executing scheduled poll check...")
+        bootstrap_data = await self.sync_bootstrap()
+        events = bootstrap_data.get("events", [])
+        completed_gws = [e["id"] for e in events if e.get("finished") and e.get("data_checked")]
+
+        # Auto self-heal: check if any previously finalized gameweeks are missing manager picks
+        async with await self.loader.get_session() as session:
+            for gw in completed_gws:
+                picks_count_stmt = select(func.count(ManagerPick.manager_id)).where(
+                    ManagerPick.gameweek == gw
+                )
+                count = (await session.execute(picks_count_stmt)).scalar() or 0
+                if count == 0:
+                    logger.info(
+                        f"Detected 0 manager picks for finalized GW{gw}. Auto-backfilling GW{gw}..."
+                    )
+                    await self.ingest_league(league_id=league_id, target_gw=gw, force=True)
+
         return await self.ingest_league(league_id=league_id, force=force)
+
