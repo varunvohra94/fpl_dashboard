@@ -116,28 +116,19 @@ class FPLPipelineRunner:
                 logger.warning(f"No managers found in mini-league {league_id}.")
                 return {"status": "EMPTY", "gameweek": target_gw}
 
-            # 6. Fetch player live match statistics for all gameweeks
-            gw_points_maps: dict[int, dict[int, int]] = {}
-            element_history: list[dict[str, Any]] = []
+            # 6. Fetch player live match statistics for target gameweek
             element_cost_map = {
                 el["id"]: el.get("now_cost", 0) for el in bootstrap_data.get("elements", [])
             }
-
-            for gw in range(1, target_gw + 1):
-                try:
-                    logger.info(f"Fetching player match statistics for GW{gw}...")
-                    live_data = await self.client.get_event_live(gw)
-                    gw_points_maps[gw] = {
-                        el["id"]: el.get("stats", {}).get("total_points", 0)
-                        for el in live_data.get("elements", [])
-                    }
-                    if gw == target_gw:
-                        element_history = self.transformer.transform_event_live_elements(
-                            live_data, gw, element_cost_map
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    logger.error(f"Error fetching player live stats for GW{gw}: {exc}")
-                    gw_points_maps[gw] = {}
+            logger.info(f"Fetching player match statistics for GW{target_gw}...")
+            live_data = await self.client.get_event_live(target_gw)
+            live_points_map = {
+                el["id"]: el.get("stats", {}).get("total_points", 0)
+                for el in live_data.get("elements", [])
+            }
+            element_history = self.transformer.transform_event_live_elements(
+                live_data, target_gw, element_cost_map
+            )
 
             # 7. Fetch manager histories, transfers, and gameweek picks concurrently
             all_scores: list[dict[str, Any]] = []
@@ -160,16 +151,15 @@ class FPLPipelineRunner:
                 except Exception as exc:  # noqa: BLE001
                     logger.error(f"Error fetching transfers for manager {mgr_id}: {exc}")
 
-                # Fetch squad picks for each completed gameweek with matching gameweek points
-                for gw in range(1, target_gw + 1):
-                    try:
-                        picks_raw = await self.client.get_manager_picks(mgr_id, gw)
-                        picks = self.transformer.transform_manager_picks(
-                            mgr_id, gw, picks_raw, gw_points_maps.get(gw, {})
-                        )
-                        all_picks.extend(picks)
-                    except Exception as exc:  # noqa: BLE001
-                        logger.debug(f"Picks not available for manager {mgr_id} GW{gw}: {exc}")
+                # Fetch squad picks for target gameweek with matching live matchday points
+                try:
+                    picks_raw = await self.client.get_manager_picks(mgr_id, target_gw)
+                    picks = self.transformer.transform_manager_picks(
+                        mgr_id, target_gw, picks_raw, live_points_map
+                    )
+                    all_picks.extend(picks)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug(f"Picks not available for manager {mgr_id} GW{target_gw}: {exc}")
 
             manager_tasks = [_fetch_manager_data(m) for m in managers]
             await asyncio.gather(*manager_tasks)
