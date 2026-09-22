@@ -2,6 +2,8 @@
 
 A bespoke Fantasy Premier League (FPL) web dashboard and analytics platform designed for private mini-leagues.
 
+🔗 **Live Application:** [https://fpl-frontend-858671399477.us-east1.run.app/](https://fpl-frontend-858671399477.us-east1.run.app/)
+
 ---
 
 ## 🌟 Core Features
@@ -26,23 +28,59 @@ A bespoke Fantasy Premier League (FPL) web dashboard and analytics platform desi
 
 ---
 
+## 💻 Local Development & Prerequisites
+
+### Prerequisites & Tools
+
+Before running the platform locally, ensure you have the following tools installed:
+
+| Tool | Purpose | Installation Guide |
+| :--- | :--- | :--- |
+| **Git** | Version control & repository tracking | [Install Git](https://git-scm.com/downloads) |
+| **Docker Desktop** | Runs the local PostgreSQL 16 database | [Install Docker Desktop](https://docs.docker.com/get-docker/) |
+| **Python 3.11+** | Backend API & Data Pipeline runtime | [Install Python](https://www.python.org/downloads/) |
+| **`uv`** | Lightning-fast Python package & virtualenv manager | [Install `uv`](https://docs.astral.sh/uv/getting-started/installation/) |
+| **Node.js (v20+) & npm** | Next.js frontend runtime and package manager | [Install Node.js](https://nodejs.org/) (or [Install via nvm](https://github.com/nvm-sh/nvm)) |
+| **Make** | Command-line orchestration (`make test-env`) | Pre-installed on macOS/Linux (`xcode-select --install` on Mac; [Make via Chocolatey](https://community.chocolatey.org/packages/make) on Windows) |
+
+> 💡 **Quick Install on macOS (Homebrew):**
+> ```bash
+> brew install git uv node make
+> # Install Docker Desktop from https://docs.docker.com/desktop/setup/install/mac-install/
+> ```
+
+---
+
 ## 🚀 Quickstart (Testing & Development Environment)
 
-Spin up the entire stack (PostgreSQL Docker container, database bootstrap & backfill, FastAPI backend, and Next.js UI) with a single command:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/varunvohra94/fpl_dashboard.git
+   cd fpl_dashboard
+   ```
 
-```bash
-make test-env
-```
+2. **Configure environment variables (optional for local defaults):**
+   ```bash
+   cp .env.example .env
+   ```
 
-Once running, the test environment will automatically display the active URLs:
-- 🌐 **Frontend Web UI:** `http://localhost:3000`
-- 📚 **Interactive API Docs (Swagger):** `http://localhost:8000/docs`
-- 🩺 **API Health Check:** `http://localhost:8000/health`
+3. **Spin up the entire stack with a single command:**
+   ```bash
+   make test-env
+   ```
+   *This single command automatically starts the PostgreSQL container, applies migrations, backfills league data, launches the FastAPI backend, and starts the Next.js frontend.*
 
-To stop all services and containers, simply press `Ctrl+C` or run:
-```bash
-make stop
-```
+4. **Access the live local services:**
+   - 🌐 **Frontend Web UI:** `http://localhost:3000`
+   - 📚 **Interactive API Docs (Swagger):** `http://localhost:8000/docs`
+   - 🩺 **API Health Check:** `http://localhost:8000/health`
+
+5. **Stop all running services & containers:**
+   ```bash
+   make stop
+   ```
+
+> 🤝 **Want to contribute a feature or fix?** Check out our [Contributing Guide](CONTRIBUTING.md) for branch conventions, testing steps, and pull request guidelines.
 
 ---
 
@@ -72,6 +110,7 @@ Run `make help` to view all available commands:
 
 ## 📚 Documentation
 
+- [Contributor & Developer Guide](CONTRIBUTING.md)
 - [Roadmap & Implementation Blueprint](docs/ROADMAP.md)
 - [Database Schema & Core Data Model Architecture](docs/architecture/database-schema-and-core-data-model.md)
 - [Database Entity-Relationship Diagram (ERD)](docs/architecture/entity-relationship-diagram.md)
