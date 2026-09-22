@@ -3,6 +3,8 @@
  */
 
 import {
+  LeagueCaptaincyResponse,
+  LeaguePositionalStatsResponse,
   LeagueStandingsResponse,
   LeagueTransfersResponse,
   ManagerProfileResponse,
@@ -84,3 +86,38 @@ export async function fetchTopPlayers(
   }
   return res.json();
 }
+
+export async function fetchPositionalStats(
+  leagueId?: number,
+  gameweek?: number,
+  position: string = "DEF"
+): Promise<LeaguePositionalStatsResponse> {
+  const params = new URLSearchParams();
+  if (leagueId) params.append("league_id", leagueId.toString());
+  if (gameweek && gameweek > 0) params.append("gameweek", gameweek.toString());
+  params.append("position", position);
+
+  const url = `${API_BASE_URL}/stats/positions?${params.toString()}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch positional stats (${res.status}): ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function fetchCaptaincyStats(
+  leagueId?: number,
+  gameweek?: number
+): Promise<LeagueCaptaincyResponse> {
+  const params = new URLSearchParams();
+  if (leagueId) params.append("league_id", leagueId.toString());
+  if (gameweek && gameweek > 0) params.append("gameweek", gameweek.toString());
+
+  const url = `${API_BASE_URL}/stats/captains?${params.toString()}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch captaincy stats (${res.status}): ${await res.text()}`);
+  }
+  return res.json();
+}
+

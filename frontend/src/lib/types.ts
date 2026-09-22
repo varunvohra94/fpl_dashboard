@@ -175,3 +175,72 @@ export interface ManagerTransferGroup {
   timestamp: string;
   transfers: TransferItem[];
 }
+
+// Positional Points Breakdown Types
+export interface TopScorerInPosition {
+  element_id: number;
+  web_name: string;
+  team_name: string;
+  points: number;
+  gameweek?: number | null;
+}
+
+export interface ManagerPositionBreakdown {
+  manager_id: number;
+  player_name: string;
+  entry_name: string;
+  rank: number;
+  gkp_points: number;
+  def_points: number;
+  mid_points: number;
+  fwd_points: number;
+  total_position_points: number;
+  active_position_points: number;
+  position_percentage: number;
+  top_scorers: TopScorerInPosition[];
+}
+
+export interface LeaguePositionalStatsResponse {
+  league_id: number;
+  gameweek: number | null;
+  position: "DEF" | "MID" | "FWD" | "GKP" | "ALL";
+  total_managers: number;
+  managers: ManagerPositionBreakdown[];
+}
+
+// Best Captaincy Performance Types
+export interface CaptainPickItem {
+  gameweek: number;
+  element_id: number;
+  player_name: string;
+  team_name: string;
+  opponent_name?: string | null;
+  raw_points: number;
+  multiplier: number;
+  total_points: number;
+  is_haul: boolean;
+  is_blank: boolean;
+}
+
+export interface ManagerCaptainStats {
+  manager_id: number;
+  player_name: string;
+  entry_name: string;
+  rank: number;
+  total_captain_points: number;
+  total_raw_points: number;
+  average_captain_points: number;
+  hauls_count: number;
+  blanks_count: number;
+  captain_success_rate: number;
+  current_pick?: CaptainPickItem | null;
+  history: CaptainPickItem[];
+}
+
+export interface LeagueCaptaincyResponse {
+  league_id: number;
+  gameweek: number | null;
+  total_managers: number;
+  captains: ManagerCaptainStats[];
+}
+

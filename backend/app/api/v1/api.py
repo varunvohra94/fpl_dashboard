@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import gameweeks, league, managers, players
+from app.api.v1.endpoints import gameweeks, league, managers, players, stats
 
 api_router = APIRouter()
 
@@ -13,4 +13,7 @@ api_router.include_router(
 )
 api_router.include_router(
     players.router, prefix="/players", tags=["Player Performance & Analytics"]
+)
+api_router.include_router(
+    stats.router, prefix="/stats", tags=["Advanced Statistical Rankings"]
 )

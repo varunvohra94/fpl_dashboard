@@ -317,3 +317,57 @@ class DataTransformer:
                 }
             )
         return metadata
+
+    @staticmethod
+    def transform_manager_picks(
+        manager_id: int,
+        gameweek: int,
+        picks_data: dict[str, Any],
+        element_points_map: dict[int, int] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Transform manager squad picks payload into manager_picks records.
+        Applies automatic substitutions and maps element match points.
+        """
+        raw_picks = picks_data.get("picks", [])
+        auto_subs = picks_data.get("automatic_subs", [])
+        pts_map = element_points_map or {}
+
+        # Track subs in/out
+        subbed_in_elements = {sub["element_in"] for sub in auto_subs if "element_in" in sub}
+        subbed_out_elements = {sub["element_out"] for sub in auto_subs if "element_out" in sub}
+
+        pick_records = []
+        for p in raw_picks:
+            el_id = p["element"]
+            pos = p["position"]
+            mult = p.get("multiplier", 1 if pos <= 11 else 0)
+            is_cap = bool(p.get("is_captain", False))
+            is_vc = bool(p.get("is_vice_captain", False))
+
+            # If player was subbed out, their effective multiplier becomes 0
+            if el_id in subbed_out_elements:
+                mult = 0
+            # If player was subbed in, their effective multiplier becomes 1
+            elif el_id in subbed_in_elements:
+                mult = 1
+
+            raw_pts = pts_map.get(el_id, 0)
+            effective_pts = raw_pts * mult
+
+            pick_records.append(
+                {
+                    "manager_id": manager_id,
+                    "gameweek": gameweek,
+                    "element_id": el_id,
+                    "position": pos,
+                    "multiplier": mult,
+                    "is_captain": is_cap,
+                    "is_vice_captain": is_vc,
+                    "raw_points": raw_pts,
+                    "total_points": effective_pts,
+                }
+            )
+
+        return pick_records
+

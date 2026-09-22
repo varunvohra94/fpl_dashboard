@@ -9,6 +9,7 @@ from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.gameweek_score import GameweekScore
+    from app.models.manager_pick import ManagerPick
     from app.models.transfer import Transfer
 
 
@@ -31,6 +32,9 @@ class Manager(Base, TimestampMixin):
     )
     transfers: Mapped[list["Transfer"]] = relationship(
         "Transfer", back_populates="manager", cascade="all, delete-orphan"
+    )
+    picks: Mapped[list["ManagerPick"]] = relationship(
+        "ManagerPick", back_populates="manager", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
